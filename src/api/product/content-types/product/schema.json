@@ -8,7 +8,7 @@
     "description": ""
   },
   "options": {
-    "draftAndPublish": false
+    "draftAndPublish": true
   },
   "pluginOptions": {},
   "attributes": {
@@ -32,12 +32,6 @@
       "relation": "oneToMany",
       "target": "api::product-alias.product-alias",
       "mappedBy": "product"
-    },
-    "creator": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "plugin::users-permissions.user",
-      "inversedBy": "products"
     },
     "receiptProducts": {
       "type": "relation",

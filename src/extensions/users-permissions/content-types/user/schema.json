@@ -71,17 +71,11 @@
       "target": "api::receipt.receipt",
       "mappedBy": "user"
     },
-    "products": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::product.product",
-      "mappedBy": "creator"
-    },
-    "cashback_requests": {
+    "cashbackRequests": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::cashback-request.cashback-request",
-      "mappedBy": "user"
+      "mappedBy": "requester"
     }
   }
 }

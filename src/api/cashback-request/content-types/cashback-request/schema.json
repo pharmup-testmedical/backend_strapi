@@ -4,7 +4,8 @@
   "info": {
     "singularName": "cashback-request",
     "pluralName": "cashback-requests",
-    "displayName": "Cashback Request"
+    "displayName": "Cashback Request",
+    "description": ""
   },
   "options": {
     "draftAndPublish": false
@@ -31,11 +32,11 @@
         "manual_review"
       ]
     },
-    "user": {
+    "requester": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "inversedBy": "cashback_requests"
+      "inversedBy": "cashbackRequests"
     }
   }
 }

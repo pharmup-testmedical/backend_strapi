@@ -377,6 +377,7 @@ export interface ApiCashbackRequestCashbackRequest
   extends Struct.CollectionTypeSchema {
   collectionName: 'cashback_requests';
   info: {
+    description: '';
     displayName: 'Cashback Request';
     pluralName: 'cashback-requests';
     singularName: 'cashback-request';
@@ -397,13 +398,13 @@ export interface ApiCashbackRequestCashbackRequest
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
     receipt: Schema.Attribute.Relation<'manyToOne', 'api::receipt.receipt'>;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    user: Schema.Attribute.Relation<
+    requester: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
     verificationStatus: Schema.Attribute.Enumeration<
       ['pending', 'approved', 'rejected', 'manual_review']
     >;
@@ -459,7 +460,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     singularName: 'product';
   };
   options: {
-    draftAndPublish: false;
+    draftAndPublish: true;
   };
   attributes: {
     canonicalName: Schema.Attribute.String &
@@ -476,10 +477,6 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    creator: Schema.Attribute.Relation<
-      'manyToOne',
-      'plugin::users-permissions.user'
-    >;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1057,7 +1054,7 @@ export interface PluginUsersPermissionsUser
   };
   attributes: {
     blocked: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
-    cashback_requests: Schema.Attribute.Relation<
+    cashbackRequests: Schema.Attribute.Relation<
       'oneToMany',
       'api::cashback-request.cashback-request'
     >;
@@ -1082,7 +1079,6 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
-    products: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
