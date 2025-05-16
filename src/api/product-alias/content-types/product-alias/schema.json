@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "product_aliases",
+  "info": {
+    "singularName": "product-alias",
+    "pluralName": "product-aliases",
+    "displayName": "Product Alias",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "productAliases"
+    },
+    "alternativeName": {
+      "type": "string",
+      "required": true
+    },
+    "verificationStatus": {
+      "type": "enumeration",
+      "enum": [
+        "unverified",
+        "verified",
+        "rejected"
+      ],
+      "default": "unverified",
+      "required": true
+    },
+    "receiptProducts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::receipt-product.receipt-product",
+      "mappedBy": "product_alias"
+    }
+  }
+}

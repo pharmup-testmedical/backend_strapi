@@ -1,0 +1,86 @@
+{
+  "kind": "collectionType",
+  "collectionName": "receipts",
+  "info": {
+    "singularName": "receipt",
+    "pluralName": "receipts",
+    "displayName": "Receipt"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "oofd_uid": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "qrData": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "fiscalId": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "verificationStatus": {
+      "type": "enumeration",
+      "enum": [
+        "pending",
+        "auto_verified",
+        "manual_review",
+        "approved",
+        "rejected"
+      ],
+      "required": true
+    },
+    "date": {
+      "type": "datetime",
+      "required": true
+    },
+    "totalAmount": {
+      "type": "decimal",
+      "required": true
+    },
+    "taxAmount": {
+      "type": "decimal",
+      "required": true
+    },
+    "taxRate": {
+      "type": "decimal",
+      "required": true
+    },
+    "kktCode": {
+      "type": "string",
+      "required": true
+    },
+    "kktSerialNumber": {
+      "type": "string",
+      "required": true
+    },
+    "paymentMethod": {
+      "type": "string",
+      "required": true
+    },
+    "receiptProducts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::receipt-product.receipt-product",
+      "mappedBy": "receipt"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "receipts"
+    },
+    "cashbackRequests": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::cashback-request.cashback-request",
+      "mappedBy": "receipt"
+    }
+  }
+}

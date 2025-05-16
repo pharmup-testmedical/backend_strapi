@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "cashback_requests",
+  "info": {
+    "singularName": "cashback-request",
+    "pluralName": "cashback-requests",
+    "displayName": "Cashback Request"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "receipt": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::receipt.receipt",
+      "inversedBy": "cashbackRequests"
+    },
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "cashbackRequests"
+    },
+    "verificationStatus": {
+      "type": "enumeration",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "manual_review"
+      ]
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "cashback_requests"
+    }
+  }
+}
