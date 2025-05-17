@@ -4,8 +4,7 @@
   "info": {
     "singularName": "product-alias",
     "pluralName": "product-aliases",
-    "displayName": "Product Alias",
-    "description": ""
+    "displayName": "Product Alias"
   },
   "options": {
     "draftAndPublish": false
@@ -19,7 +18,11 @@
     },
     "alternativeName": {
       "type": "string",
-      "required": true
+      "required": true,
+      "unique": true,
+      "pluginOptions": {
+        "index": true
+      }
     },
     "verificationStatus": {
       "type": "enumeration",
@@ -30,12 +33,6 @@
       ],
       "default": "unverified",
       "required": true
-    },
-    "receiptProducts": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::receipt-product.receipt-product",
-      "mappedBy": "product_alias"
     }
   }
 }

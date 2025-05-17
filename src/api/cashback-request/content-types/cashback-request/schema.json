@@ -4,8 +4,7 @@
   "info": {
     "singularName": "cashback-request",
     "pluralName": "cashback-requests",
-    "displayName": "Cashback Request",
-    "description": ""
+    "displayName": "Cashback Request"
   },
   "options": {
     "draftAndPublish": false

@@ -3,273 +3,264 @@ import { parseReceiptData } from '../utils/receiptHelpers';
 
 // Define interfaces for type safety
 interface Product {
-    documentId: string;
-    canonicalName: string;
+  documentId: string;
+  canonicalName: string;
+  productAliases?: ProductAlias[];
 }
 
 interface ProductAlias {
-    documentId: string;
-    alternativeName: string;
-    verificationStatus: 'unverified' | 'verified' | 'rejected';
-    product?: Product;
+  documentId: string;
+  alternativeName: string;
+  verificationStatus: 'unverified' | 'verified' | 'rejected';
+  product: Product;
 }
 
-interface ReceiptProductData {
-    department: string;
-    unitPrice: number;
-    quantity: number;
-    measureUnit: string;
-    totalPrice: number;
-    product?: string | null;
-    product_alias?: string | null;
-    name: string;
+interface ItemMapping {
+  itemName: string;
+  productId: string;
+}
+
+type ReceiptVerificationStatus = 'auto_verified' | 'auto_rejected' | 'manual_review' | 'manually_verified' | 'manually_rejected';
+type ItemVerificationStatus = 'auto_verified_canon' | 'auto_verified_alias' | 'auto_rejected_alias' | 'manual_review' | 'manually_verified_alias' | 'manually_rejected_wrong_name' | 'manually_rejected_alias';
+
+interface ItemProps {
+  unitPrice: number;
+  quantity: number;
+  measureUnit: string;
+  totalPrice: number;
+  department: string;
 }
 
 export default factories.createCoreController('api::receipt.receipt', ({ strapi }) => ({
-    async submit(ctx) {
-        try {
-            // Validate input
-            const { qrData, cashbackProductIds }: { qrData: string; cashbackProductIds: string[] } = ctx.request.body;
-            const userId = ctx.state.user.id;
+  async submit(ctx) {
+    try {
+      // Validate input
+      const { qrData, itemMappings }: { qrData: string; itemMappings: { [itemName: string]: string } } = ctx.request.body;
+      const userId = ctx.state.user.id;
 
-            // Manual validation for qrData
-            if (!qrData || typeof qrData !== 'string') {
-                strapi.log.warn(`Invalid QR data for user ${userId}`);
-                return ctx.badRequest('QR link is required and must be a valid string');
-            }
+      // Validate qrData
+      if (!qrData || typeof qrData !== 'string') {
+        strapi.log.warn(`Invalid QR data for user ${userId}`);
+        return ctx.badRequest('QR link is required and must be a valid string');
+      }
 
-            // Validate cashbackProductIds
-            if (!Array.isArray(cashbackProductIds) || cashbackProductIds.length === 0) {
-                strapi.log.warn(`Empty or invalid cashbackProductIds for user ${userId}`);
-                return ctx.badRequest('At least one cashback product documentId is required.');
-            }
+      // Validate itemMappings
+      if (!itemMappings || typeof itemMappings !== 'object' || Object.keys(itemMappings).length === 0) {
+        strapi.log.warn(`Empty or invalid itemMappings for user ${userId}`);
+        return ctx.badRequest('At least one item name and product documentId mapping is required.');
+      }
 
-            // Check for duplicate receipt
-            const existingReceipt = await strapi.documents('api::receipt.receipt').findMany({
-                filters: { qrData },
-            });
-            if (existingReceipt.length > 0) {
-                strapi.log.warn(`Duplicate receipt submission attempted: ${qrData}`);
-                return ctx.badRequest('Receipt has already been submitted.');
-            }
+      // Check for duplicate receipt
+      const existingReceipt = await strapi.documents('api::receipt.receipt').findMany({
+        filters: { qrData },
+      });
+      if (existingReceipt.length > 0) {
+        strapi.log.warn(`Duplicate receipt submission attempted: ${qrData}`);
+        return ctx.badRequest('Receipt has already been submitted.');
+      }
 
-            // Parse receipt data
-            const receiptData = await parseReceiptData(qrData, { strapi });
+      // Parse receipt data
+      const receiptData = await parseReceiptData(qrData, { strapi });
+      strapi.log.warn(`Parsed products: ${JSON.stringify(receiptData.products, null, 2)}`);
 
-            // Check for duplicate fiscal ID
-            const duplicateCheck = await strapi.documents('api::receipt.receipt').findMany({
-                filters: { fiscalId: receiptData.fiscalId },
-            });
-            if (duplicateCheck.length > 0) {
-                strapi.log.warn(`Duplicate fiscal ID submission: ${receiptData.fiscalId}`);
-                return ctx.badRequest('Receipt has already been submitted.');
-            }
+      // Check for duplicate fiscal ID
+      const duplicateCheck = await strapi.documents('api::receipt.receipt').findMany({
+        filters: { fiscalId: receiptData.fiscalId },
+      });
+      if (duplicateCheck.length > 0) {
+        strapi.log.warn(`Duplicate fiscal ID submission: ${receiptData.fiscalId}`);
+        return ctx.badRequest('Receipt has already been submitted.');
+      }
 
-            // Validate cashbackProductIds
-            const products = await strapi.documents('api::product.product').findMany({
-                filters: {
-                    documentId: { $in: cashbackProductIds },
-                    cashbackEligible: true,
-                },
-                fields: ['canonicalName'],
-            }) as Product[];
+      // Validate that all submitted item names exist in receiptData.products
+      const receiptItemNames = receiptData.products.map((item: any) => item.name.toLowerCase());
+      const invalidItemNames = Object.keys(itemMappings).filter(
+        (itemName) => !receiptItemNames.includes(itemName.toLowerCase())
+      );
+      if (invalidItemNames.length > 0) {
+        strapi.log.warn(`Invalid item names submitted: ${invalidItemNames.join(', ')}`);
+        return ctx.badRequest(`Invalid item names: ${invalidItemNames.join(', ')}`);
+      }
 
-            if (products.length !== cashbackProductIds.length) {
-                const invalidIds = cashbackProductIds.filter(
-                    (documentId) => !products.some((p) => p.documentId === documentId)
-                );
-                strapi.log.warn(`Invalid cashback product documentIds: ${invalidIds.join(', ')}`);
-                return ctx.badRequest(`Invalid or non-eligible product documentIds: ${invalidIds.join(', ')}`);
-            }
+      // Validate product documentIds and fetch products with aliases
+      const productIds = Object.values(itemMappings);
+      const productPromises = productIds.map(async (productId) => {
+        const product = await strapi.documents('api::product.product').findOne({
+          documentId: productId,
+          status: 'published',
+          filters: { cashbackEligible: true },
+          populate: { productAliases: true },
+        });
+        return { productId, product };
+      });
+      const productResults = await Promise.all(productPromises);
 
-            // Track remaining products
-            const remainingProducts: { documentId: string; canonicalName: string }[] = products.map((p) => ({
-                documentId: p.documentId,
-                canonicalName: p.canonicalName,
-            }));
-            const directMatches: ReceiptProductData[] = [];
-            const aliasMatches: ReceiptProductData[] = [];
-            const receiptProductData: ReceiptProductData[] = [];
-            const rejectedAliasNames: string[] = [];
+      // Check for invalid products
+      const invalidProducts = productResults.filter(({ product }) => !product);
+      if (invalidProducts.length > 0) {
+        const invalidIds = invalidProducts.map(({ productId }) => productId);
+        strapi.log.warn(`Invalid or non-eligible product documentIds: ${invalidIds.join(', ')}`);
+        return ctx.badRequest(`The following product IDs are invalid, not cashback-eligible, or not published: ${invalidIds.join(', ')}`);
+      }
 
-            // Iterate over receipt products
-            for (const item of receiptData.products) {
-                const receiptProduct: ReceiptProductData = {
-                    department: item.department,
-                    unitPrice: item.unitPrice,
-                    quantity: item.quantity,
-                    measureUnit: item.measureUnit,
-                    totalPrice: item.totalPrice,
-                    name: item.name,
-                };
+      // Map products for easy lookup
+      const products = productResults.map(({ product }) => product) as Product[];
+      strapi.log.debug(`Fetched products: ${JSON.stringify(products.map(p => ({ documentId: p.documentId, canonicalName: p.canonicalName })), null, 2)}`);
 
-                // Direct name match
-                const directMatch = remainingProducts.find(
-                    (p) => p.canonicalName.toLowerCase() === item.name.toLowerCase()
-                );
-                if (directMatch) {
-                    directMatches.push({
-                        ...receiptProduct,
-                        product: directMatch.documentId,
-                        product_alias: null,
-                    });
-                    remainingProducts.splice(remainingProducts.indexOf(directMatch), 1);
-                    continue;
-                }
+      // Process receipt items
+      let hasRejected = false;
+      let hasNonVerified = false;
+      const receiptItems: any[] = await Promise.all(
+        receiptData.products.map(async (itemData: any) => {
+          const itemName = itemData.name;
+          const props: ItemProps = {
+            unitPrice: itemData.unitPrice,
+            quantity: itemData.quantity,
+            measureUnit: itemData.measureUnit,
+            totalPrice: itemData.totalPrice,
+            department: itemData.department,
+          };
 
-                // Alias match
-                // Here it is tricky since we assume the same alias name can be used for different products,
-                // in which case we might encounter several aliases and hence we check for each alias
-                const aliases = await strapi.documents('api::product-alias.product-alias').findMany({
-                    filters: { alternativeName: item.name },
-                    populate: { product: true },
-                }) as ProductAlias[];
+          // Validate props
+          if (
+            typeof props.unitPrice !== 'number' ||
+            isNaN(props.unitPrice) ||
+            typeof props.quantity !== 'number' ||
+            !Number.isInteger(props.quantity) ||
+            !props.measureUnit ||
+            typeof props.totalPrice !== 'number' ||
+            isNaN(props.totalPrice) ||
+            !props.department
+          ) {
+            strapi.log.warn(`Invalid props for item ${itemName}: ${JSON.stringify(props)}`);
+            return ctx.badRequest(`Invalid item props for ${itemName}: ensure all required fields are valid.`);
+          }
 
-                if (aliases.length > 0) {
-                    const aliasRecord = aliases[0];
-                    if (aliasRecord.verificationStatus === 'rejected') {
-                        rejectedAliasNames.push(item.name);
-                        continue;
-                    }
-                    if (
-                        aliasRecord.verificationStatus === 'verified' &&
-                        aliasRecord.product &&
-                        remainingProducts.some((p) => p.documentId === aliasRecord.product.documentId)
-                    ) {
-                        const matchedProduct = remainingProducts.find((p) => p.documentId === aliasRecord.product.documentId);
-                        aliasMatches.push({
-                            ...receiptProduct,
-                            product: aliasRecord.product.documentId,
-                            product_alias: aliasRecord.documentId,
-                        });
-                        remainingProducts.splice(remainingProducts.indexOf(matchedProduct!), 1);
-                        continue;
-                    }
-                }
+          // Check if item is claimed
+          const productId = Object.keys(itemMappings).find(
+            (key) => key.toLowerCase() === itemName.toLowerCase()
+          ) ? itemMappings[itemName] : null;
 
-                // Non-match: Check if claimed in cashbackProductIds
-                const claimedProduct = products.find((p) => cashbackProductIds.includes(p.documentId));
-                receiptProductData.push({
-                    ...receiptProduct,
-                    product: claimedProduct ? claimedProduct.documentId : null,
-                    product_alias: null,
+          if (!productId) {
+            // Unclaimed item
+            return {
+              __component: 'receipt-item.product-claim',
+              name: itemName,
+              props,
+            };
+          }
+
+          // Claimed item
+          const product = products.find((p) => p.documentId === productId);
+          if (!product) {
+            strapi.log.warn(`Product with documentId ${productId} not found for item ${itemName}`);
+            return ctx.badRequest(`Product with documentId ${productId} does not exist or is not cashback-eligible.`);
+          }
+
+          let verificationStatus: ItemVerificationStatus = 'manual_review';
+          let claimedProductId = product.documentId;
+          let productAlias: { documentId: string } | null = null;
+
+          // Check canonicalName match
+          if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
+            verificationStatus = 'auto_verified_canon';
+            // productAlias remains null
+          } else {
+            // Check aliases
+            const aliases = (product.productAliases || []) as ProductAlias[];
+            const matchingAlias = aliases.find(
+              (alias) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+            );
+
+            if (matchingAlias) {
+              if (matchingAlias.verificationStatus === 'verified') {
+                verificationStatus = 'auto_verified_alias';
+                productAlias = { documentId: matchingAlias.documentId };
+              } else if (matchingAlias.verificationStatus === 'rejected') {
+                verificationStatus = 'auto_rejected_alias';
+                productAlias = { documentId: matchingAlias.documentId };
+                hasRejected = true;
+              } else {
+                verificationStatus = 'manual_review';
+                productAlias = { documentId: matchingAlias.documentId };
+                hasNonVerified = true;
+              }
+            } else {
+              // No matching alias, create a new one for manual_review
+              verificationStatus = 'manual_review';
+              hasNonVerified = true;
+              try {
+                const newAlias = await strapi.documents('api::product-alias.product-alias').create({
+                  data: {
+                    alternativeName: itemName,
+                    verificationStatus: 'unverified',
+                    product: { documentId: claimedProductId },
+                  },
                 });
+                productAlias = { documentId: newAlias.documentId };
+                strapi.log.debug(`Created product alias for item ${itemName}: ${newAlias.documentId}`);
+              } catch (error: any) {
+                strapi.log.error(`Failed to create product alias for item ${itemName}: ${JSON.stringify(error, null, 2)}`);
+                return ctx.badRequest(`Failed to create product alias for ${itemName}: ${error.message || 'Alias creation error'}`);
+              }
             }
+          }
 
-            // Check for rejected aliases
-            if (rejectedAliasNames.length > 0) {
-                strapi.log.warn(`Rejected alias names found: ${rejectedAliasNames.join(', ')}`);
-                return ctx.badRequest(
-                    `Receipt contains rejected product names: ${rejectedAliasNames.join(', ')}`
-                );
-            }
+          return {
+            __component: 'receipt-item.item',
+            name: itemName,
+            claimedProduct: { documentId: claimedProductId },
+            verificationStatus,
+            props,
+            productAlias,
+          };
+        })
+      );
 
-            // Create receipt
-            const receipt = await strapi.documents('api::receipt.receipt').create({
-                data: {
-                    oofd_uid: receiptData.oofd_uid,
-                    qrData,
-                    fiscalId: receiptData.fiscalId,
-                    verificationStatus: remainingProducts.length === 0 ? 'auto_verified' : 'manual_review',
-                    user: userId,
-                    date: receiptData.date,
-                    totalAmount: receiptData.totalAmount,
-                    taxAmount: receiptData.taxAmount,
-                    taxRate: receiptData.taxRate,
-                    kktCode: receiptData.kktCode,
-                    kktSerialNumber: receiptData.kktSerialNumber,
-                    paymentMethod: receiptData.paymentMethod,
-                },
-            });
-            strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId}`);
+      // Log receiptItems for debugging
+      strapi.log.debug(`Receipt items: ${JSON.stringify(receiptItems, null, 2)}`);
 
-            // Create ReceiptProducts
-            const allReceiptProducts = [...directMatches, ...aliasMatches, ...receiptProductData];
+      // Determine receipt verification status
+      let receiptVerificationStatus: ReceiptVerificationStatus;
+      if (hasRejected) {
+        receiptVerificationStatus = 'auto_rejected';
+      } else if (hasNonVerified) {
+        receiptVerificationStatus = 'manual_review';
+      } else {
+        receiptVerificationStatus = 'auto_verified';
+      }
 
-            // Ensure all cashbackProductIds are included
-            for (const claimedProduct of products) {
-                if (!allReceiptProducts.some((rp) => rp.product === claimedProduct.documentId)) {
-                    allReceiptProducts.push({
-                        product: claimedProduct.documentId,
-                        product_alias: null,
-                        name: claimedProduct.canonicalName,
-                        department: 'Unknown',
-                        unitPrice: 0.00,
-                        quantity: 1,
-                        measureUnit: 'unit',
-                        totalPrice: 0.00,
-                    });
-                }
-            }
-
-            // Create/reuse aliases for non-matches and set product documentId
-            for (const rp of allReceiptProducts) {
-                let aliasId = rp.product_alias;
-                let productId = rp.product;
-
-                if (!aliasId) {
-                    // Skip alias creation if name matches a canonicalName
-                    const isCanonical = await strapi.documents('api::product.product').findMany({
-                        filters: { canonicalName: rp.name },
-                        fields: ['canonicalName'],
-                    });
-                    if (isCanonical.length > 0) {
-                        productId = isCanonical[0].documentId;
-                        aliasId = null;
-                    } else {
-                        // Create or reuse unverified alias
-                        const aliases = await strapi.documents('api::product-alias.product-alias').findMany({
-                            filters: { alternativeName: rp.name },
-                            populate: { product: true },
-                        }) as ProductAlias[];
-                        let alias: ProductAlias;
-                        if (aliases.length === 0) {
-                            alias = await strapi.documents('api::product-alias.product-alias').create({
-                                data: {
-                                    alternativeName: rp.name,
-                                    product: productId || products.find((p) => cashbackProductIds.includes(p.documentId))?.documentId,
-                                    verificationStatus: 'unverified',
-                                },
-                            }) as ProductAlias;
-                            strapi.log.info(`Created unverified alias: ${rp.name}`);
-                        } else {
-                            alias = aliases[0];
-                            if (productId && !alias.product?.documentId) {
-                                await strapi.documents('api::product-alias.product-alias').update({
-                                    documentId: alias.documentId,
-                                    data: { product: productId },
-                                });
-                            }
-                        }
-                        aliasId = alias.documentId;
-                        if (!productId && alias.product?.documentId) {
-                            productId = alias.product.documentId;
-                        }
-                    }
-                }
-
-                await strapi.documents('api::receipt-product.receipt-product').create({
-                    data: {
-                        receipt: receipt.documentId,
-                        product: productId,
-                        product_alias: aliasId,
-                        department: rp.department,
-                        unitPrice: rp.unitPrice,
-                        quantity: rp.quantity,
-                        measureUnit: rp.measureUnit,
-                        totalPrice: rp.totalPrice,
-                    },
-                });
-                strapi.log.info(`Added receipt product: ${rp.name} to receipt documentId ${receipt.documentId}`);
-            }
-
-            return ctx.created({
-                message: 'Receipt submitted successfully and will be processed.',
-                receipt,
-            });
-        } catch (error: any) {
-            strapi.log.error(`Error processing receipt for user ${ctx.state.user.id}: ${error.message}`);
-            return ctx.badRequest(error.message);
-        }
-    },
+      // Create receipt
+      try {
+        const receipt = await strapi.documents('api::receipt.receipt').create({
+          data: {
+            oofd_uid: receiptData.oofd_uid,
+            qrData,
+            fiscalId: receiptData.fiscalId,
+            verificationStatus: receiptVerificationStatus,
+            user: userId,
+            date: receiptData.date,
+            totalAmount: receiptData.totalAmount,
+            taxAmount: receiptData.taxAmount,
+            taxRate: receiptData.taxRate,
+            kktCode: receiptData.kktCode,
+            kktSerialNumber: receiptData.kktSerialNumber,
+            paymentMethod: receiptData.paymentMethod,
+            items: receiptItems,
+          },
+        });
+        strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId} with status ${receiptVerificationStatus}`);
+        return ctx.created({
+          message: 'Receipt submitted successfully and will be processed.',
+          receipt,
+        });
+      } catch (error: any) {
+        strapi.log.error(`Failed to create receipt for user ${userId}: ${JSON.stringify(error, null, 2)}`);
+        return ctx.badRequest(`Failed to create receipt: ${error.message || 'Validation or relation error'}`);
+      }
+    } catch (error: any) {
+      strapi.log.error(`Error processing receipt for user ${ctx.state.user.id}: ${JSON.stringify(error, null, 2)}`);
+      return ctx.badRequest(error.message || 'Unexpected error during receipt processing');
+    }
+  },
 }));

@@ -377,7 +377,6 @@ export interface ApiCashbackRequestCashbackRequest
   extends Struct.CollectionTypeSchema {
   collectionName: 'cashback_requests';
   info: {
-    description: '';
     displayName: 'Cashback Request';
     pluralName: 'cashback-requests';
     singularName: 'cashback-request';
@@ -415,7 +414,6 @@ export interface ApiProductAliasProductAlias
   extends Struct.CollectionTypeSchema {
   collectionName: 'product_aliases';
   info: {
-    description: '';
     displayName: 'Product Alias';
     pluralName: 'product-aliases';
     singularName: 'product-alias';
@@ -424,7 +422,12 @@ export interface ApiProductAliasProductAlias
     draftAndPublish: false;
   };
   attributes: {
-    alternativeName: Schema.Attribute.String & Schema.Attribute.Required;
+    alternativeName: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique &
+      Schema.Attribute.SetPluginOptions<{
+        index: true;
+      }>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -436,10 +439,6 @@ export interface ApiProductAliasProductAlias
       Schema.Attribute.Private;
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
-    receiptProducts: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::receipt-product.receipt-product'
-    >;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -454,7 +453,6 @@ export interface ApiProductAliasProductAlias
 export interface ApiProductProduct extends Struct.CollectionTypeSchema {
   collectionName: 'products';
   info: {
-    description: '';
     displayName: 'Product';
     pluralName: 'products';
     singularName: 'product';
@@ -488,49 +486,6 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'api::product-alias.product-alias'
     >;
     publishedAt: Schema.Attribute.DateTime;
-    receiptProducts: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::receipt-product.receipt-product'
-    >;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
-export interface ApiReceiptProductReceiptProduct
-  extends Struct.CollectionTypeSchema {
-  collectionName: 'receipt_products';
-  info: {
-    displayName: 'Receipt Product';
-    pluralName: 'receipt-products';
-    singularName: 'receipt-product';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    department: Schema.Attribute.String & Schema.Attribute.Required;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::receipt-product.receipt-product'
-    > &
-      Schema.Attribute.Private;
-    measureUnit: Schema.Attribute.String & Schema.Attribute.Required;
-    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
-    product_alias: Schema.Attribute.Relation<
-      'manyToOne',
-      'api::product-alias.product-alias'
-    >;
-    publishedAt: Schema.Attribute.DateTime;
-    quantity: Schema.Attribute.Integer & Schema.Attribute.Required;
-    receipt: Schema.Attribute.Relation<'manyToOne', 'api::receipt.receipt'>;
-    totalPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
-    unitPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -540,6 +495,7 @@ export interface ApiReceiptProductReceiptProduct
 export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
   collectionName: 'receipts';
   info: {
+    description: '';
     displayName: 'Receipt';
     pluralName: 'receipts';
     singularName: 'receipt';
@@ -559,6 +515,9 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     fiscalId: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    items: Schema.Attribute.DynamicZone<
+      ['receipt-item.product-claim', 'receipt-item.item']
+    >;
     kktCode: Schema.Attribute.String & Schema.Attribute.Required;
     kktSerialNumber: Schema.Attribute.String & Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
@@ -575,10 +534,6 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     qrData: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
-    receiptProducts: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::receipt-product.receipt-product'
-    >;
     taxAmount: Schema.Attribute.Decimal & Schema.Attribute.Required;
     taxRate: Schema.Attribute.Decimal & Schema.Attribute.Required;
     totalAmount: Schema.Attribute.Decimal & Schema.Attribute.Required;
@@ -590,7 +545,13 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       'plugin::users-permissions.user'
     >;
     verificationStatus: Schema.Attribute.Enumeration<
-      ['pending', 'auto_verified', 'manual_review', 'approved', 'rejected']
+      [
+        'auto_verified',
+        'auto_rejected',
+        'manual_review',
+        'manually_verified',
+        'manually_rejected',
+      ]
     > &
       Schema.Attribute.Required;
   };
@@ -1112,7 +1073,6 @@ declare module '@strapi/strapi' {
       'api::cashback-request.cashback-request': ApiCashbackRequestCashbackRequest;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;
-      'api::receipt-product.receipt-product': ApiReceiptProductReceiptProduct;
       'api::receipt.receipt': ApiReceiptReceipt;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

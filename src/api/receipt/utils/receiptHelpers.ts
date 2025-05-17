@@ -45,14 +45,14 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             throw new Error('Invalid receipt data: date not found');
         }
 
-        // Extract total amount
+        // Extract total amount (keep in kopecks)
         const totalAmount = ticket.totalSum;
         if (typeof totalAmount !== 'number' || isNaN(totalAmount)) {
             strapi.log.warn(`Invalid total amount in API response: ${ticket.totalSum}`);
             throw new Error('Invalid receipt data: total amount not found');
         }
 
-        // Extract tax amount and tax rate from data.taxes
+        // Extract tax amount and tax rate from data.taxes (keep tax sum in kopecks)
         const taxes = data.taxes || [];
         if (taxes.length === 0) {
             strapi.log.warn(`No taxes found in API response for ${qrLink}`);
@@ -91,18 +91,20 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
                 const productData = {
                     name: commodity.name || `Unknown_${index + 1}`,
                     department: commodity.sectionCode || 'Unknown',
-                    unitPrice: (commodity.price || 0) / 100,
+                    unitPrice: commodity.price || 0,
                     quantity: commodity.quantity || 1,
                     measureUnit: commodity.measureUnitCode
                         ? data.measureUnits?.[commodity.measureUnitCode] || 'unit'
                         : 'unit',
-                    totalPrice: (commodity.sum || 0) / 100,
+                    totalPrice: commodity.sum || 0,
                 };
                 if (
                     !productData.name ||
                     isNaN(productData.unitPrice) ||
                     isNaN(productData.quantity) ||
-                    isNaN(productData.totalPrice)
+                    isNaN(productData.totalPrice) ||
+                    !productData.measureUnit ||
+                    !productData.department
                 ) {
                     strapi.log.warn(`Invalid product at index ${index}: ${JSON.stringify(productData)}`);
                     return null;
@@ -115,8 +117,17 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             strapi.log.warn(`No valid products found in API response for ${qrLink}`);
             throw new Error('Invalid receipt data: no products found');
         }
-        strapi.log.debug(`Parsed products: ${JSON.stringify(products)}`);
 
+        // Validate totalAmount against sum of products' totalPrice
+        const productsTotal = products.reduce((sum: number, product: any) => sum + product.totalPrice, 0);
+        if (productsTotal !== totalAmount) {
+            strapi.log.warn(`Total amount mismatch: products total (${productsTotal}) does not match ticket total (${totalAmount})`);
+            throw new Error('Invalid receipt data: sum of product totals does not match total amount');
+        }
+
+        // Log raw financial values for debugging
+        strapi.log.debug(`Raw financial values: totalSum=${ticket.totalSum}, taxSum=${taxes[0]?.sum}, productPrice=${products[0]?.unitPrice}, productSum=${products[0]?.totalPrice}`);
+        strapi.log.debug(`Parsed products: ${JSON.stringify(products)}`);
         strapi.log.info(`Parsed receipt data from ${qrLink}`);
         return {
             oofd_uid,

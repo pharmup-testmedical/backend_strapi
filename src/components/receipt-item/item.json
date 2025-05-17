@@ -1,0 +1,43 @@
+{
+  "collectionName": "components_receipt_item_items",
+  "info": {
+    "displayName": "claimedItem",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "claimedProduct": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::product.product"
+    },
+    "verificationStatus": {
+      "type": "enumeration",
+      "enum": [
+        "auto_verified_canon",
+        "auto_verified_alias",
+        "auto_rejected_alias",
+        "manual_review",
+        "manually_verified_alias",
+        "manually_rejected_wrong_name",
+        "manually_rejected_alias"
+      ],
+      "required": true
+    },
+    "props": {
+      "type": "component",
+      "repeatable": false,
+      "component": "receipt-item.item-props",
+      "required": true
+    },
+    "productAlias": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::product-alias.product-alias"
+    }
+  }
+}

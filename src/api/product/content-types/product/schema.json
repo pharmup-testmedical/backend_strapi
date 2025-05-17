@@ -4,25 +4,21 @@
   "info": {
     "singularName": "product",
     "pluralName": "products",
-    "displayName": "Product",
-    "description": ""
+    "displayName": "Product"
   },
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
   "attributes": {
     "canonicalName": {
       "type": "string",
       "required": true,
-      "unique": true,
-      "pluginOptions": {}
+      "unique": true
     },
     "cashbackEligible": {
       "type": "boolean",
       "default": false,
-      "required": true,
-      "pluginOptions": {}
+      "required": true
     },
     "category": {
       "type": "string"
@@ -31,12 +27,6 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::product-alias.product-alias",
-      "mappedBy": "product"
-    },
-    "receiptProducts": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::receipt-product.receipt-product",
       "mappedBy": "product"
     },
     "cashbackRequests": {

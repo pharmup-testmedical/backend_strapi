@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_receipt_item_product_claims",
+  "info": {
+    "displayName": "unclaimedItem",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "props": {
+      "displayName": "itemProps",
+      "type": "component",
+      "repeatable": false,
+      "component": "receipt-item.item-props",
+      "required": true
+    }
+  }
+}

@@ -4,7 +4,8 @@
   "info": {
     "singularName": "receipt",
     "pluralName": "receipts",
-    "displayName": "Receipt"
+    "displayName": "Receipt",
+    "description": ""
   },
   "options": {
     "draftAndPublish": false
@@ -28,11 +29,11 @@
     "verificationStatus": {
       "type": "enumeration",
       "enum": [
-        "pending",
         "auto_verified",
+        "auto_rejected",
         "manual_review",
-        "approved",
-        "rejected"
+        "manually_verified",
+        "manually_rejected"
       ],
       "required": true
     },
@@ -64,12 +65,6 @@
       "type": "string",
       "required": true
     },
-    "receiptProducts": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::receipt-product.receipt-product",
-      "mappedBy": "receipt"
-    },
     "user": {
       "type": "relation",
       "relation": "manyToOne",
@@ -81,6 +76,13 @@
       "relation": "oneToMany",
       "target": "api::cashback-request.cashback-request",
       "mappedBy": "receipt"
+    },
+    "items": {
+      "type": "dynamiczone",
+      "components": [
+        "receipt-item.product-claim",
+        "receipt-item.item"
+      ]
     }
   }
 }
