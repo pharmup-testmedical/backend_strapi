@@ -4,7 +4,7 @@
   "info": {
     "singularName": "product-alias",
     "pluralName": "product-aliases",
-    "displayName": "Product Alias"
+    "displayName": "Псевдоним товара"
   },
   "options": {
     "draftAndPublish": false

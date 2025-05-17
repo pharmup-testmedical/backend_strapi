@@ -1,7 +1,7 @@
 {
   "collectionName": "components_receipt_item_items",
   "info": {
-    "displayName": "claimedItem",
+    "displayName": "Позиция для кешбэка",
     "description": ""
   },
   "options": {},

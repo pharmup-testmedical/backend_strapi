@@ -377,7 +377,8 @@ export interface ApiCashbackRequestCashbackRequest
   extends Struct.CollectionTypeSchema {
   collectionName: 'cashback_requests';
   info: {
-    displayName: 'Cashback Request';
+    description: '';
+    displayName: '\u0417\u0430\u043F\u0440\u043E\u0441 \u043D\u0430 \u043A\u0435\u0448\u0431\u044D\u043A';
     pluralName: 'cashback-requests';
     singularName: 'cashback-request';
   };
@@ -394,9 +395,8 @@ export interface ApiCashbackRequestCashbackRequest
       'api::cashback-request.cashback-request'
     > &
       Schema.Attribute.Private;
-    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
-    receipt: Schema.Attribute.Relation<'manyToOne', 'api::receipt.receipt'>;
+    receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
     requester: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.user'
@@ -414,7 +414,7 @@ export interface ApiProductAliasProductAlias
   extends Struct.CollectionTypeSchema {
   collectionName: 'product_aliases';
   info: {
-    displayName: 'Product Alias';
+    displayName: '\u041F\u0441\u0435\u0432\u0434\u043E\u043D\u0438\u043C \u0442\u043E\u0432\u0430\u0440\u0430';
     pluralName: 'product-aliases';
     singularName: 'product-alias';
   };
@@ -453,7 +453,7 @@ export interface ApiProductAliasProductAlias
 export interface ApiProductProduct extends Struct.CollectionTypeSchema {
   collectionName: 'products';
   info: {
-    displayName: 'Product';
+    displayName: '\u0422\u043E\u0432\u0430\u0440';
     pluralName: 'products';
     singularName: 'product';
   };
@@ -467,10 +467,6 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     cashbackEligible: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
-    cashbackRequests: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::cashback-request.cashback-request'
-    >;
     category: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -496,7 +492,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
   collectionName: 'receipts';
   info: {
     description: '';
-    displayName: 'Receipt';
+    displayName: '\u0427\u0435\u043A';
     pluralName: 'receipts';
     singularName: 'receipt';
   };
@@ -504,8 +500,8 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
-    cashbackRequests: Schema.Attribute.Relation<
-      'oneToMany',
+    cashbackRequest: Schema.Attribute.Relation<
+      'manyToOne',
       'api::cashback-request.cashback-request'
     >;
     createdAt: Schema.Attribute.DateTime;
@@ -1005,7 +1001,7 @@ export interface PluginUsersPermissionsUser
   collectionName: 'up_users';
   info: {
     description: '';
-    displayName: 'User';
+    displayName: '\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C';
     name: 'user';
     pluralName: 'users';
     singularName: 'user';

@@ -4,23 +4,18 @@
   "info": {
     "singularName": "cashback-request",
     "pluralName": "cashback-requests",
-    "displayName": "Cashback Request"
+    "displayName": "Запрос на кешбэк",
+    "description": ""
   },
   "options": {
     "draftAndPublish": false
   },
   "attributes": {
-    "receipt": {
+    "receipts": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "oneToMany",
       "target": "api::receipt.receipt",
-      "inversedBy": "cashbackRequests"
-    },
-    "product": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::product.product",
-      "inversedBy": "cashbackRequests"
+      "mappedBy": "cashbackRequest"
     },
     "verificationStatus": {
       "type": "enumeration",

@@ -4,7 +4,7 @@
   "info": {
     "singularName": "receipt",
     "pluralName": "receipts",
-    "displayName": "Receipt",
+    "displayName": "Чек",
     "description": ""
   },
   "options": {
@@ -71,18 +71,18 @@
       "target": "plugin::users-permissions.user",
       "inversedBy": "receipts"
     },
-    "cashbackRequests": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::cashback-request.cashback-request",
-      "mappedBy": "receipt"
-    },
     "items": {
       "type": "dynamiczone",
       "components": [
         "receipt-item.product-claim",
         "receipt-item.item"
       ]
+    },
+    "cashbackRequest": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::cashback-request.cashback-request",
+      "inversedBy": "receipts"
     }
   }
 }

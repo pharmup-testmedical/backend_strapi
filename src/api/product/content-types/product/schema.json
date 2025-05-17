@@ -4,7 +4,7 @@
   "info": {
     "singularName": "product",
     "pluralName": "products",
-    "displayName": "Product"
+    "displayName": "Товар"
   },
   "options": {
     "draftAndPublish": true
@@ -13,7 +13,8 @@
     "canonicalName": {
       "type": "string",
       "required": true,
-      "unique": true
+      "unique": true,
+      "displayName": "Canonical name"
     },
     "cashbackEligible": {
       "type": "boolean",
@@ -27,12 +28,6 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::product-alias.product-alias",
-      "mappedBy": "product"
-    },
-    "cashbackRequests": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::cashback-request.cashback-request",
       "mappedBy": "product"
     }
   }

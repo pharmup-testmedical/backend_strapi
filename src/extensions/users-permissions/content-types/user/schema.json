@@ -6,7 +6,7 @@
     "description": "",
     "singularName": "user",
     "pluralName": "users",
-    "displayName": "User"
+    "displayName": "Пользователь"
   },
   "options": {
     "draftAndPublish": false
