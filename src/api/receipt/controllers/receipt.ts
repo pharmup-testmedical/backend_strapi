@@ -1,3 +1,7 @@
+/**
+ * receipt controller
+ */
+
 import { factories } from '@strapi/strapi';
 import { parseReceiptData } from '../utils/receiptHelpers';
 

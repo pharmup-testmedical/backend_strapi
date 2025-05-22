@@ -2,7 +2,8 @@
   "collectionName": "components_receipt_item_items",
   "info": {
     "displayName": "Позиция для кешбэка",
-    "description": ""
+    "description": "",
+    "icon": "shoppingCart"
   },
   "options": {},
   "attributes": {
@@ -23,7 +24,6 @@
         "auto_rejected_alias",
         "manual_review",
         "manually_verified_alias",
-        "manually_rejected_wrong_name",
         "manually_rejected_alias"
       ],
       "required": true

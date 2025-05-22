@@ -5,6 +5,7 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
   info: {
     description: '';
     displayName: '\u041F\u043E\u0437\u0438\u0446\u0438\u044F \u0434\u043B\u044F \u043A\u0435\u0448\u0431\u044D\u043A\u0430';
+    icon: 'shoppingCart';
   };
   attributes: {
     claimedProduct: Schema.Attribute.Relation<
@@ -25,7 +26,6 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
         'auto_rejected_alias',
         'manual_review',
         'manually_verified_alias',
-        'manually_rejected_wrong_name',
         'manually_rejected_alias',
       ]
     > &
@@ -53,6 +53,7 @@ export interface ReceiptItemProductClaim extends Struct.ComponentSchema {
   info: {
     description: '';
     displayName: '\u0421\u0442\u043E\u0440\u043E\u043D\u043D\u044F\u044F \u043F\u043E\u0437\u0438\u0446\u0438\u044F';
+    icon: 'thumbDown';
   };
   attributes: {
     name: Schema.Attribute.String & Schema.Attribute.Required;
