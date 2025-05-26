@@ -167,7 +167,7 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
 
         // Log raw financial values for debugging
         strapi.log.info(`Raw financial values: totalSum=${ticket.totalSum}, taxSum=${taxes[0]?.sum}, productPrice=${products[0]?.unitPrice}, productSum=${products[0]?.totalPrice}`)
-        strapi.log.info(`Parsed products: ${JSON.stringify(products)}`)
+        strapi.log.info(`Parsed products: ${JSON.stringify(products, null, 2)}`)
         strapi.log.info(`Successfully parsed receipt data from ${apiUrl}`)
 
         return {

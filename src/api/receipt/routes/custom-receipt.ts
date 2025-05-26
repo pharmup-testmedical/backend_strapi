@@ -9,5 +9,10 @@ export default {
             path: '/receipts/submit',
             handler: 'receipt.submit',
         },
+        {
+            method: 'GET',
+            path: '/receipts/me',
+            handler: 'receipt.me',
+        }
     ],
 };

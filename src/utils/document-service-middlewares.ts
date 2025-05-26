@@ -58,12 +58,38 @@ const updateAction = 'update';
 
 export const registerProductAliasMiddleware = ({ strapi }) => {
   strapi.documents.use(async (context, next) => {
+    // Access the authenticated user
+    const user = context.state?.user;
+
+    if (user) {
+      strapi.log.info(`User performing the action: ${user.id} (${user.username})`);
+      // You can now use user properties in your logic
+      const isAdmin = user.role?.name === 'Administrator';
+      // ... rest of your middleware logic
+    }
+
     // Only trigger for 'update' action on product-alias
     if (context.uid !== aliasUid || context.action !== updateAction) {
       return await next();
     }
 
-    const { data, documentId } = context.params;
+    const { documentId, data } = context.params;
+
+    // Fetch previous alias state
+    const previousAlias = await strapi.documents(aliasUid).findOne({
+      documentId,
+      fields: ['verificationStatus'],
+    });
+
+    // Prevent update if alias isn't unverified
+    if (!previousAlias || previousAlias.verificationStatus !== 'unverified') {
+      const currentStatus = previousAlias?.verificationStatus || 'not found';
+      throw new Error(
+        `Cannot update alias ${documentId} - current status is '${currentStatus}'. ` +
+        `Only aliases with 'unverified' status can be updated to 'verified' or 'rejected'.`
+      );
+    }
+
     const newStatus = data.verificationStatus;
 
     // Check if verificationStatus is changing to 'verified' or 'rejected'
@@ -72,23 +98,11 @@ export const registerProductAliasMiddleware = ({ strapi }) => {
       return await next();
     }
 
-    // Fetch previous alias state
-    const previousAlias = await strapi.documents(aliasUid).findOne({
-      documentId,
-      fields: ['verificationStatus'],
-    });
-
-    if (!previousAlias || previousAlias.verificationStatus !== 'unverified') {
-      strapi.log.warn(
-        `Alias ${documentId} not unverified (was ${previousAlias?.verificationStatus}), skipping`
-      );
-      return await next();
-    }
-
     // Proceed with update after calling next() to ensure alias is updated
     const result = await next();
 
     try {
+      // [Rest of your existing receipt update logic...]
       // Find receipts with manual_review status and items linked to this alias
       const receipts = await strapi.documents(receiptUid).findMany({
         filters: { verificationStatus: 'manual_review' },

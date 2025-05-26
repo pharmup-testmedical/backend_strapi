@@ -4,7 +4,8 @@
   "info": {
     "singularName": "product",
     "pluralName": "products",
-    "displayName": "Товар"
+    "displayName": "Товар",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
@@ -21,14 +22,31 @@
       "default": false,
       "required": true
     },
-    "category": {
-      "type": "string"
-    },
     "productAliases": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::product-alias.product-alias",
       "mappedBy": "product"
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "products"
+    },
+    "brand": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::brand.brand",
+      "inversedBy": "products"
+    },
+    "image": {
+      "allowedTypes": [
+        "images",
+        "files"
+      ],
+      "type": "media",
+      "multiple": false
     }
   }
 }

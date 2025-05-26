@@ -19,11 +19,6 @@ interface ProductAlias {
   product: Product;
 }
 
-interface ItemMapping {
-  itemName: string;
-  productId: string;
-}
-
 type ReceiptVerificationStatus = 'auto_verified' | 'auto_rejected' | 'manual_review' | 'manually_verified' | 'manually_rejected';
 type ItemVerificationStatus = 'auto_verified_canon' | 'auto_verified_alias' | 'auto_rejected_alias' | 'manual_review' | 'manually_verified_alias' | 'manually_rejected_wrong_name' | 'manually_rejected_alias';
 
@@ -40,18 +35,19 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
     try {
       // Validate input
       const { qrData, itemMappings }: { qrData: string; itemMappings: { [itemName: string]: string } } = ctx.request.body;
+      strapi.log.info(`Received receipt submission from user ${ctx.state.user.id} with qrData: ${qrData} and itemMappings: ${JSON.stringify(itemMappings)}`);
       const userId = ctx.state.user.id;
 
       // Validate qrData
       if (!qrData || typeof qrData !== 'string') {
         strapi.log.warn(`Invalid QR data for user ${userId}`);
-        return ctx.badRequest('QR link is required and must be a valid string');
+        return ctx.badRequest('QR-код обязателен и должен быть действительной строкой');
       }
 
       // Validate itemMappings
       if (!itemMappings || typeof itemMappings !== 'object' || Object.keys(itemMappings).length === 0) {
         strapi.log.warn(`Empty or invalid itemMappings for user ${userId}`);
-        return ctx.badRequest('At least one item name and product documentId mapping is required.');
+        return ctx.badRequest('Требуется хотя бы одно сопоставление имени товара и documentId продукта');
       }
 
       // Check for duplicate receipt
@@ -60,12 +56,11 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       });
       if (existingReceipt.length > 0) {
         strapi.log.warn(`Duplicate receipt submission attempted: ${qrData}`);
-        return ctx.badRequest('Receipt has already been submitted.');
+        return ctx.badRequest('Чек уже был отправлен');
       }
 
       // Parse receipt data
       const receiptData = await parseReceiptData(qrData, { strapi });
-      strapi.log.warn(`Parsed products: ${JSON.stringify(receiptData.products, null, 2)}`);
 
       // Check for duplicate fiscal ID
       const duplicateCheck = await strapi.documents('api::receipt.receipt').findMany({
@@ -73,7 +68,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       });
       if (duplicateCheck.length > 0) {
         strapi.log.warn(`Duplicate fiscal ID submission: ${receiptData.fiscalId}`);
-        return ctx.badRequest('Receipt has already been submitted.');
+        return ctx.badRequest('Чек уже был отправлен');
       }
 
       // Validate that all submitted item names exist in receiptData.products
@@ -83,7 +78,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       );
       if (invalidItemNames.length > 0) {
         strapi.log.warn(`Invalid item names submitted: ${invalidItemNames.join(', ')}`);
-        return ctx.badRequest(`Invalid item names: ${invalidItemNames.join(', ')}`);
+        return ctx.badRequest(`Недопустимые имена товаров: ${invalidItemNames.join(', ')}`);
       }
 
       // Validate product documentIds and fetch products with aliases
@@ -104,7 +99,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       if (invalidProducts.length > 0) {
         const invalidIds = invalidProducts.map(({ productId }) => productId);
         strapi.log.warn(`Invalid or non-eligible product documentIds: ${invalidIds.join(', ')}`);
-        return ctx.badRequest(`The following product IDs are invalid, not cashback-eligible, or not published: ${invalidIds.join(', ')}`);
+        return ctx.badRequest('Не все отправленные продукты являются действительными, подходящими для кэшбэка и опубликованными');
       }
 
       // Map products for easy lookup
@@ -137,16 +132,21 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
             !props.department
           ) {
             strapi.log.warn(`Invalid props for item ${itemName}: ${JSON.stringify(props)}`);
-            return ctx.badRequest(`Invalid item props for ${itemName}: ensure all required fields are valid.`);
+            return ctx.badRequest(`Недопустимые свойства для товара ${itemName}: убедитесь, что все обязательные поля заполнены корректно`);
           }
 
           // Check if item is claimed
-          const productId = Object.keys(itemMappings).find(
-            (key) => key.toLowerCase() === itemName.toLowerCase()
-          ) ? itemMappings[itemName] : null;
+          const matchedKey = Object.keys(itemMappings).find(
+            (key) => {
+              strapi.log.info(`Checking itemMappings for ${key.toLowerCase()} against ${itemName.toLowerCase()}`);
+              return key.toLowerCase() === itemName.toLowerCase()
+            }
+          );
+          const productId = matchedKey ? itemMappings[matchedKey] : null;
 
           if (!productId) {
             // Unclaimed item
+            strapi.log.info(`Item ${itemName} is not claimed, creating product claim.`);
             return {
               __component: 'receipt-item.product-claim',
               name: itemName,
@@ -158,7 +158,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           const product = products.find((p) => p.documentId === productId);
           if (!product) {
             strapi.log.warn(`Product with documentId ${productId} not found for item ${itemName}`);
-            return ctx.badRequest(`Product with documentId ${productId} does not exist or is not cashback-eligible.`);
+            return ctx.badRequest(`Продукт с documentId ${productId} не существует или не подходит для кэшбэка`);
           }
 
           let verificationStatus: ItemVerificationStatus = 'manual_review';
@@ -205,7 +205,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
                 strapi.log.debug(`Created product alias for item ${itemName}: ${newAlias.documentId}`);
               } catch (error: any) {
                 strapi.log.error(`Failed to create product alias for item ${itemName}: ${JSON.stringify(error, null, 2)}`);
-                return ctx.badRequest(`Failed to create product alias for ${itemName}: ${error.message || 'Alias creation error'}`);
+                return ctx.badRequest(`Не удалось создать псевдоним продукта для ${itemName}: ${error.message || 'Ошибка создания псевдонима'}`);
               }
             }
           }
@@ -255,16 +255,41 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         });
         strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId} with status ${receiptVerificationStatus}`);
         return ctx.created({
-          message: 'Receipt submitted successfully and will be processed.',
+          message: 'Чек успешно отправлен и будет обработан.',
           receipt,
         });
       } catch (error: any) {
         strapi.log.error(`Failed to create receipt for user ${userId}: ${JSON.stringify(error, null, 2)}`);
-        return ctx.badRequest(`Failed to create receipt: ${error.message || 'Validation or relation error'}`);
+        return ctx.badRequest(`Не удалось создать чек: ${error.message || 'Ошибка валидации или связи'}`);
       }
     } catch (error: any) {
       strapi.log.error(`Error processing receipt for user ${ctx.state.user.id}: ${JSON.stringify(error, null, 2)}`);
-      return ctx.badRequest(error.message || 'Unexpected error during receipt processing');
+      return ctx.badRequest(error.message || 'Непредвиденная ошибка при обработке чека');
+    }
+  },
+  async me(ctx) {
+    try {
+      const userId = ctx.state.user.id;
+      if (!userId) {
+        strapi.log.warn('No authenticated user found');
+        return ctx.unauthorized('Вы должны быть авторизованы для просмотра своих чеков');
+      }
+
+      const receipts = await strapi.documents('api::receipt.receipt').findMany({
+        filters: { user: userId },
+        populate: ctx.query.populate || { items: true },
+      });
+
+      strapi.log.info(`Fetched ${receipts.length} receipts for user ${userId}`);
+      return ctx.send({
+        data: receipts,
+        meta: {
+          total: receipts.length,
+        },
+      });
+    } catch (error) {
+      strapi.log.error(`Error fetching receipts for user ${ctx.state.user?.id || 'unknown'}: ${error.message}`);
+      return ctx.badRequest('Не удалось загрузить ваши чеки');
     }
   },
 }));
