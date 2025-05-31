@@ -163,3 +163,4 @@ examples/**/types/generated
 templates/yarn.lock
 
 .env
+public/uploads

@@ -1,0 +1,40 @@
+{
+  "kind": "singleType",
+  "collectionName": "main_pages",
+  "info": {
+    "singularName": "main-page",
+    "pluralName": "main-pages",
+    "displayName": "Главная страница",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "enableSearch": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "searchPlaceholder": {
+      "type": "string",
+      "required": true,
+      "default": "Найти товар"
+    },
+    "featuredTitle": {
+      "type": "string",
+      "required": true,
+      "default": "Спецпредложения"
+    },
+    "displayedProducts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product"
+    },
+    "tabCategories": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::category.category"
+    }
+  }
+}

@@ -1,5 +1,18 @@
 import type { Schema, Struct } from '@strapi/strapi';
 
+export interface MainPagePromoBanner extends Struct.ComponentSchema {
+  collectionName: 'components_main_page_promo_banners';
+  info: {
+    description: '';
+    displayName: '\u041F\u0440\u043E\u043C\u043E-\u0431\u0430\u043D\u043D\u0435\u0440';
+  };
+  attributes: {
+    image: Schema.Attribute.Media<'images'> & Schema.Attribute.Required;
+    navigationRoute: Schema.Attribute.String;
+    title: Schema.Attribute.String;
+  };
+}
+
 export interface ReceiptItemItem extends Struct.ComponentSchema {
   collectionName: 'components_receipt_item_items';
   info: {
@@ -65,6 +78,7 @@ export interface ReceiptItemProductClaim extends Struct.ComponentSchema {
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
+      'main-page.promo-banner': MainPagePromoBanner;
       'receipt-item.item': ReceiptItemItem;
       'receipt-item.item-props': ReceiptItemItemProps;
       'receipt-item.product-claim': ReceiptItemProductClaim;

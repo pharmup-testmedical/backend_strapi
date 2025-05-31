@@ -1,0 +1,21 @@
+{
+  "kind": "singleType",
+  "collectionName": "promo_carousels",
+  "info": {
+    "singularName": "promo-carousel",
+    "pluralName": "promo-carousels",
+    "displayName": "Промо карусель",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "banners": {
+      "type": "component",
+      "repeatable": true,
+      "component": "main-page.promo-banner",
+      "required": true
+    }
+  }
+}

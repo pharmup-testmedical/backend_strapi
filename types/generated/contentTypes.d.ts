@@ -467,6 +467,51 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
+  collectionName: 'main_pages';
+  info: {
+    description: '';
+    displayName: '\u0413\u043B\u0430\u0432\u043D\u0430\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430';
+    pluralName: 'main-pages';
+    singularName: 'main-page';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    displayedProducts: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product.product'
+    >;
+    enableSearch: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    featuredTitle: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'\u0421\u043F\u0435\u0446\u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F'>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::main-page.main-page'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    searchPlaceholder: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'\u041D\u0430\u0439\u0442\u0438 \u0442\u043E\u0432\u0430\u0440'>;
+    tabCategories: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::category.category'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiProductAliasProductAlias
   extends Struct.CollectionTypeSchema {
   collectionName: 'product_aliases';
@@ -523,6 +568,9 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     canonicalName: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    cashbackAmount: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
     cashbackEligible: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
@@ -541,6 +589,36 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::product-alias.product-alias'
     >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiPromoCarouselPromoCarousel extends Struct.SingleTypeSchema {
+  collectionName: 'promo_carousels';
+  info: {
+    description: '';
+    displayName: '\u041F\u0440\u043E\u043C\u043E \u043A\u0430\u0440\u0443\u0441\u0435\u043B\u044C';
+    pluralName: 'promo-carousels';
+    singularName: 'promo-carousel';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    banners: Schema.Attribute.Component<'main-page.promo-banner', true> &
+      Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::promo-carousel.promo-carousel'
+    > &
+      Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -610,6 +688,40 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       ]
     > &
       Schema.Attribute.Required;
+  };
+}
+
+export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
+  collectionName: 'tasks_pages';
+  info: {
+    description: '';
+    displayName: '\u0417\u0430\u0434\u0430\u043D\u0438\u044F';
+    pluralName: 'tasks-pages';
+    singularName: 'tasks-page';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    enableSearch: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::tasks-page.tasks-page'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    searchPlaceholder: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'\u041F\u043E\u0438\u0441\u043A \u0437\u0430\u0434\u0430\u043D\u0438\u044F'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1129,9 +1241,12 @@ declare module '@strapi/strapi' {
       'api::brand.brand': ApiBrandBrand;
       'api::cashback-request.cashback-request': ApiCashbackRequestCashbackRequest;
       'api::category.category': ApiCategoryCategory;
+      'api::main-page.main-page': ApiMainPageMainPage;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;
+      'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
       'api::receipt.receipt': ApiReceiptReceipt;
+      'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

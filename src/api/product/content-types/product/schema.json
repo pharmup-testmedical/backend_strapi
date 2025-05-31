@@ -41,12 +41,18 @@
       "inversedBy": "products"
     },
     "image": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
       "allowedTypes": [
         "images",
         "files"
-      ],
-      "type": "media",
-      "multiple": false
+      ]
+    },
+    "cashbackAmount": {
+      "type": "decimal",
+      "default": 0,
+      "required": true
     }
   }
 }
