@@ -1,0 +1,25 @@
+{
+  "kind": "singleType",
+  "collectionName": "tasks_pages",
+  "info": {
+    "singularName": "tasks-page",
+    "pluralName": "tasks-pages",
+    "displayName": "Задания",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "enableSearch": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "searchPlaceholder": {
+      "type": "string",
+      "required": true,
+      "default": "Поиск задания"
+    }
+  }
+}

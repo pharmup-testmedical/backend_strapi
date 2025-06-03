@@ -1,0 +1,88 @@
+{
+  "kind": "collectionType",
+  "collectionName": "receipts",
+  "info": {
+    "singularName": "receipt",
+    "pluralName": "receipts",
+    "displayName": "Чек",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "oofd_uid": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "qrData": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "fiscalId": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "verificationStatus": {
+      "type": "enumeration",
+      "enum": [
+        "auto_verified",
+        "auto_rejected",
+        "manual_review",
+        "manually_verified",
+        "manually_rejected"
+      ],
+      "required": true
+    },
+    "date": {
+      "type": "datetime",
+      "required": true
+    },
+    "totalAmount": {
+      "type": "decimal",
+      "required": true
+    },
+    "taxAmount": {
+      "type": "decimal",
+      "required": true
+    },
+    "taxRate": {
+      "type": "decimal",
+      "required": true
+    },
+    "kktCode": {
+      "type": "string",
+      "required": true
+    },
+    "kktSerialNumber": {
+      "type": "string",
+      "required": true
+    },
+    "paymentMethod": {
+      "type": "string",
+      "required": true
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "receipts"
+    },
+    "items": {
+      "type": "dynamiczone",
+      "components": [
+        "receipt-item.product-claim",
+        "receipt-item.item"
+      ]
+    },
+    "cashbackRequest": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::cashback-request.cashback-request",
+      "inversedBy": "receipts"
+    }
+  }
+}
