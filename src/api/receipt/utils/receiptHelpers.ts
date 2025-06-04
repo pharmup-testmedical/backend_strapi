@@ -12,9 +12,9 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
         let apiUrl = qrLink;
 
         // URL transformation debug
-        if (apiUrl.includes('/ticket/')) {
-            apiUrl = apiUrl.replace('/ticket/', '/api/tickets/ticket/');
-            strapi.log.info(`[Receipt] Transformed URL: ${apiUrl}`);
+        if (!apiUrl.includes('https://consumer.oofd.kz/api/tickets/get-by-url?')) {
+            strapi.log.warn(`Invalid QR link format: ${qrLink}`);
+            throw new Error('Ошибка в формате QR-кода');
         }
 
         strapi.log.info(`[Receipt] Making request to: ${apiUrl}`);

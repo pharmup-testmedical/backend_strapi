@@ -14,11 +14,10 @@ export default factories.createCoreController('api::product.product', ({ strapi 
             }
 
             // Fetch cashback-eligible and published products
-            const products = await strapi.documents('api::product.product').findMany({
+            const products = await strapi.entityService.findMany('api::product.product', {
                 filters: {
                     cashbackEligible: true,
                 },
-                status: 'published',
                 populate: {
                     productAliases: {
                         fields: ['id', 'alternativeName', 'verificationStatus'],
@@ -33,16 +32,15 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                         fields: ['url', 'name', 'alternativeText'],
                     },
                 },
-                fields: ['id', 'canonicalName', 'cashbackEligible'],
+                fields: ['id', 'canonicalName', 'cashbackEligible', 'cashbackAmount'],
+                publicationState: 'live',
             });
 
-            // Check if products exist
             if (!products || products.length === 0) {
                 strapi.log.info(`No cashback-eligible products found for user ${ctx.state.user.id}`);
                 return ctx.notFound('Нет доступных продуктов с кэшбэком');
             }
 
-            // Log success
             strapi.log.info(`Retrieved ${products.length} cashback-eligible products for user ${ctx.state.user.id}`);
             return ctx.send({
                 message: 'Продукты с кэшбэком успешно получены',

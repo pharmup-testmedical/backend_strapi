@@ -76,6 +76,19 @@
       "relation": "oneToMany",
       "target": "api::cashback-request.cashback-request",
       "mappedBy": "requester"
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "surname": {
+      "type": "string",
+      "required": true
+    },
+    "account": {
+      "type": "decimal",
+      "required": true,
+      "default": 0
     }
   }
 }
