@@ -58,14 +58,13 @@ const updateAction = 'update';
 
 export const registerProductAliasMiddleware = ({ strapi }) => {
   strapi.documents.use(async (context, next) => {
+
     // Access the authenticated user
     const user = context.state?.user;
 
     if (user) {
-      strapi.log.info(`User performing the action: ${user.id} (${user.username})`);
       // You can now use user properties in your logic
       const isAdmin = user.role?.name === 'Administrator';
-      // ... rest of your middleware logic
     }
 
     // Only trigger for 'update' action on product-alias
@@ -204,5 +203,25 @@ export const registerProductAliasMiddleware = ({ strapi }) => {
     }
 
     return result;
+  });
+
+  strapi.server.use(async (ctx, next) => {
+    const { path, method } = ctx.request;
+
+    if (
+      method === 'PATCH' &&
+      path.startsWith('/api/product-aliases/')
+    ) {
+      const user = ctx.state?.user;
+      if (!user) {
+        strapi.log.warn('User not authenticated');
+      } else {
+        strapi.log.info(`Authenticated user: ${user.username}`);
+        const isAdmin = user.role?.name === 'Administrator';
+        // Store for later if needed: ctx.state.isAdmin = isAdmin;
+      }
+    }
+
+    await next();
   });
 };

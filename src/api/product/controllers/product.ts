@@ -33,7 +33,7 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                     },
                 },
                 fields: ['id', 'canonicalName', 'cashbackEligible', 'cashbackAmount'],
-                publicationState: 'live',
+                status: 'published', // vs 'draft
             });
 
             if (!products || products.length === 0) {

@@ -89,6 +89,10 @@
       "type": "decimal",
       "required": true,
       "default": 0
+    },
+    "city": {
+      "type": "string",
+      "required": false
     }
   }
 }

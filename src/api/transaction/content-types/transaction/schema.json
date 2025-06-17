@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "transactions",
+  "info": {
+    "singularName": "transaction",
+    "pluralName": "transactions",
+    "displayName": "Транзакция",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "cashbackRequest": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::cashback-request.cashback-request",
+      "inversedBy": "transaction"
+    }
+  }
+}
