@@ -427,10 +427,6 @@ export interface ApiCashbackRequestCashbackRequest
       'manyToOne',
       'plugin::users-permissions.user'
     >;
-    transaction: Schema.Attribute.Relation<
-      'oneToOne',
-      'api::transaction.transaction'
-    >;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -723,38 +719,6 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
     searchPlaceholder: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'\u041F\u043E\u0438\u0441\u043A \u0437\u0430\u0434\u0430\u043D\u0438\u044F'>;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
-export interface ApiTransactionTransaction extends Struct.CollectionTypeSchema {
-  collectionName: 'transactions';
-  info: {
-    description: '';
-    displayName: '\u0422\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u044F';
-    pluralName: 'transactions';
-    singularName: 'transaction';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    cashbackRequest: Schema.Attribute.Relation<
-      'oneToOne',
-      'api::cashback-request.cashback-request'
-    >;
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::transaction.transaction'
-    > &
-      Schema.Attribute.Private;
-    publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1289,7 +1253,6 @@ declare module '@strapi/strapi' {
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
       'api::receipt.receipt': ApiReceiptReceipt;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
-      'api::transaction.transaction': ApiTransactionTransaction;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

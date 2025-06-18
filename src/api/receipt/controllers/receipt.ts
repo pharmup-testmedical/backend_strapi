@@ -20,7 +20,7 @@ interface ProductAlias {
 }
 
 type ReceiptVerificationStatus = 'auto_verified' | 'auto_rejected' | 'manual_review' | 'manually_verified' | 'manually_rejected';
-type ItemVerificationStatus = 'auto_verified_canon' | 'auto_verified_alias' | 'auto_rejected_alias' | 'manual_review' | 'manually_verified_alias' | 'manually_rejected_wrong_name' | 'manually_rejected_alias';
+type ItemVerificationStatus = 'auto_verified_canon' | 'auto_verified_alias' | 'auto_rejected_alias' | 'manual_review' | 'manually_verified_alias' | 'manually_rejected_alias';
 
 interface ItemProps {
   unitPrice: number;
@@ -292,4 +292,12 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       return ctx.badRequest('Не удалось загрузить ваши чеки');
     }
   },
+  async update(documentId, params) {
+    strapi.log.info(`Updating receipt with documentId: ${documentId} and params: ${JSON.stringify(params)}`);
+    // some logic here
+    const result = await super.update(documentId, params);
+    // some more logic
+
+    return result;
+  }
 }));

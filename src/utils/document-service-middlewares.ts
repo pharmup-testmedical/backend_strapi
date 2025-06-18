@@ -159,7 +159,6 @@ export const registerProductAliasMiddleware = ({ strapi }) => {
             [
               'auto_rejected_alias',
               'manually_rejected_alias',
-              'manually_rejected_wrong_name',
             ].includes(item.verificationStatus)
         );
         const allVerified = updatedItems.every(
