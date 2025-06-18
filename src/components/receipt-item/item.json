@@ -38,6 +38,10 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::product-alias.product-alias"
+    },
+    "cashback": {
+      "type": "decimal",
+      "required": true
     }
   }
 }

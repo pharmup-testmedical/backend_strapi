@@ -9,6 +9,7 @@ import { parseReceiptData } from '../utils/receiptHelpers';
 interface Product {
   documentId: string;
   canonicalName: string;
+  cashbackAmount: number;  // Add this line
   productAliases?: ProductAlias[];
 }
 
@@ -29,6 +30,27 @@ interface ItemProps {
   totalPrice: number;
   department: string;
 }
+
+interface BaseItem {
+  __component: string;
+  name: string;
+}
+
+interface ProductClaimItem extends BaseItem {
+  __component: 'receipt-item.product-claim';
+  props: ItemProps;
+}
+
+interface CashbackItem extends BaseItem {
+  __component: 'receipt-item.item';
+  claimedProduct: { documentId: string };
+  verificationStatus: ItemVerificationStatus;
+  props: ItemProps;
+  productAlias?: { documentId: string };
+  cashback: number;
+}
+
+type ReceiptItem = ProductClaimItem | CashbackItem;
 
 export default factories.createCoreController('api::receipt.receipt', ({ strapi }) => ({
   async submit(ctx) {
@@ -88,7 +110,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           documentId: productId,
           status: 'published',
           filters: { cashbackEligible: true },
-          populate: { productAliases: true },
+          populate: {
+            productAliases: true
+          },
         });
         return { productId, product };
       });
@@ -109,7 +133,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       // Process receipt items
       let hasRejected = false;
       let hasNonVerified = false;
-      const receiptItems: any[] = await Promise.all(
+      const receiptItems: ReceiptItem[] = await Promise.all(
         receiptData.products.map(async (itemData: any) => {
           const itemName = itemData.name;
           const props: ItemProps = {
@@ -148,7 +172,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
             // Unclaimed item
             strapi.log.info(`Item ${itemName} is not claimed, creating product claim.`);
             return {
-              __component: 'receipt-item.product-claim',
+              __component: 'receipt-item.product-claim' as const, // Important to use 'as const'
               name: itemName,
               props,
             };
@@ -164,6 +188,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           let verificationStatus: ItemVerificationStatus = 'manual_review';
           let claimedProductId = product.documentId;
           let productAlias: { documentId: string } | null = null;
+          const cashbackAmount = product.cashbackAmount || 0; // Get the cashback amount from the product
 
           // Check canonicalName match
           if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
@@ -211,12 +236,13 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           }
 
           return {
-            __component: 'receipt-item.item',
+            __component: 'receipt-item.item' as const,  // Important to use 'as const'
             name: itemName,
             claimedProduct: { documentId: claimedProductId },
             verificationStatus,
             props,
             productAlias,
+            cashback: cashbackAmount, // Make sure this matches the schema field name
           };
         })
       );

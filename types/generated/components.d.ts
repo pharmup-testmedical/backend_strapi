@@ -21,6 +21,7 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
     icon: 'shoppingCart';
   };
   attributes: {
+    cashback: Schema.Attribute.Decimal & Schema.Attribute.Required;
     claimedProduct: Schema.Attribute.Relation<
       'oneToOne',
       'api::product.product'

@@ -2,7 +2,7 @@ import type { Core } from '@strapi/strapi';
 import {
   registerProductAliasMiddleware,
   // registerAliasVerifierMiddleware
-} from './utils/document-service-middlewares';
+} from './middlewares/document-service-middlewares';
 
 export default {
   /**
