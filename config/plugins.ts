@@ -30,10 +30,10 @@ export default ({ env }) => ({
                 allowedFields: ['name', 'surname'], // custom fields
             },
             email_confirmation: true, // require email verification
-            email_confirmation_redirection: env(
-                'FRONTEND_CONFIRMATION_REDIRECT',
-                'http://localhost:3000/email-confirmed'
-            ),
+            email_confirmation_redirection: env('FRONTEND_CONFIRMATION_REDIRECT'),
+            reset_password: {
+                redirection: env('FRONTEND_RESET_PASSWORD_REDIRECT'),
+            },
         },
     },
 });
