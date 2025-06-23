@@ -27,7 +27,7 @@ export default ({ env }) => ({
     'users-permissions': {
         config: {
             register: {
-                allowedFields: ['name', 'surname'], // custom fields
+                allowedFields: ['name', 'surname', 'city'], // custom fields
             },
             email_confirmation: true, // require email verification
             email_confirmation_redirection: env('FRONTEND_CONFIRMATION_REDIRECT'),
