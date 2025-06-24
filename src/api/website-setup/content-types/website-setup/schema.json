@@ -1,0 +1,20 @@
+{
+  "kind": "singleType",
+  "collectionName": "website_setups",
+  "info": {
+    "singularName": "website-setup",
+    "pluralName": "website-setups",
+    "displayName": "Настройки",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "receiptValidDays": {
+      "type": "integer",
+      "default": 5,
+      "required": true
+    }
+  }
+}

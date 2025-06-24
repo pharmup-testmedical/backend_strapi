@@ -725,6 +725,37 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
   };
 }
 
+export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
+  collectionName: 'website_setups';
+  info: {
+    description: '';
+    displayName: '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438';
+    pluralName: 'website-setups';
+    singularName: 'website-setup';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::website-setup.website-setup'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    receiptValidDays: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<5>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface PluginContentReleasesRelease
   extends Struct.CollectionTypeSchema {
   collectionName: 'strapi_releases';
@@ -1253,6 +1284,7 @@ declare module '@strapi/strapi' {
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
       'api::receipt.receipt': ApiReceiptReceipt;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
+      'api::website-setup.website-setup': ApiWebsiteSetupWebsiteSetup;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;
