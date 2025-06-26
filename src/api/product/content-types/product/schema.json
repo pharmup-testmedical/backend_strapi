@@ -53,6 +53,9 @@
       "type": "decimal",
       "default": 0,
       "required": true
+    },
+    "unpublishDate": {
+      "type": "date"
     }
   }
 }

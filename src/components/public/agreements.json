@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_public_agreements",
+  "info": {
+    "displayName": "Соглашения",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "personalDataPolicy": {
+      "type": "string",
+      "required": false,
+      "unique": true
+    },
+    "userAgreementTerms": {
+      "type": "string",
+      "unique": true
+    }
+  }
+}

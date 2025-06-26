@@ -11,9 +11,18 @@
     "draftAndPublish": false
   },
   "attributes": {
-    "receiptValidDays": {
-      "type": "integer",
-      "default": 5,
+    "promo": {
+      "displayName": "promo",
+      "type": "component",
+      "repeatable": false,
+      "component": "settings.promo",
+      "required": true
+    },
+    "banking": {
+      "displayName": "banking",
+      "type": "component",
+      "repeatable": false,
+      "component": "settings.banking",
       "required": true
     }
   }

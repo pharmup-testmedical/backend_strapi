@@ -1,4 +1,3 @@
-// src/utils/calculate-user-balance.ts
 interface ReceiptItem {
     id: number;
     cashback?: number;
@@ -20,7 +19,7 @@ interface CashbackRequest {
     documentId: string;
     requester?: { documentId: string };
     verificationStatus: string;
-    receipts?: Receipt[];
+    amount: number; // New field instead of receipts
 }
 
 export async function calculateUserBalance(userDocumentId: string): Promise<number> {
@@ -46,29 +45,17 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
         return userSum + receiptSum;
     }, 0);
 
-    // Get approved cashback requests
+    // Get approved cashback requests (simpler now with direct amount field)
     const approvedCashbackRequests = await strapi.documents('api::cashback-request.cashback-request').findMany({
         filters: {
             requester: { documentId: { $eq: userDocumentId } },
             verificationStatus: { $eq: 'approved' }
-        },
-        populate: {
-            receipts: {
-                populate: ['items']
-            }
         }
     }) as CashbackRequest[];
 
-    const totalApprovedCashback = approvedCashbackRequests.reduce((requestSum, request) => {
-        const cashbackFromRequest = request.receipts?.reduce((receiptsSum, receipt) => {
-            const cashbackFromReceipt = receipt.items?.reduce((itemsSum, item) => {
-                const itemCashback = item.cashback || 0;
-                strapi.log.debug(`[Balance] Request ${request.documentId} receipt ${receipt.documentId} item ${item.id} cashback: ${itemCashback}`);
-                return itemsSum + itemCashback;
-            }, 0) || 0;
-            return receiptsSum + cashbackFromReceipt;
-        }, 0) || 0;
-        return requestSum + cashbackFromRequest;
+    const totalApprovedCashback = approvedCashbackRequests.reduce((sum, request) => {
+        strapi.log.debug(`[Balance] Request ${request.documentId} amount: ${request.amount}`);
+        return sum + (request.amount || 0);
     }, 0);
 
     const balance = totalVerifiedCashback - totalApprovedCashback;

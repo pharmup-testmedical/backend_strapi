@@ -33,7 +33,8 @@
         "auto_rejected",
         "manual_review",
         "manually_verified",
-        "manually_rejected"
+        "manually_rejected",
+        "auto_rejected_late_submission"
       ],
       "required": true
     },
@@ -78,11 +79,8 @@
         "receipt-item.item"
       ]
     },
-    "cashbackRequest": {
-      "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::cashback-request.cashback-request",
-      "inversedBy": "receipts"
+    "finalCashback": {
+      "type": "decimal"
     }
   }
 }

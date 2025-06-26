@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_settings_bankings",
+  "info": {
+    "displayName": "Банкинг",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "minWithdrawAmount": {
+      "required": true,
+      "default": 500,
+      "type": "decimal"
+    }
+  }
+}

@@ -96,9 +96,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
 
       // Fetch receiptValidDays from website-setup
       const websiteSetup = await strapi.documents('api::website-setup.website-setup').findFirst({
-        fields: ['receiptValidDays'],
+        populate: 'promo',
       })
-      const receiptValidDays = websiteSetup?.receiptValidDays || 5 // Fallback to 5 if not set
+      const receiptValidDays = websiteSetup?.promo.receiptValidDays || 5 // Fallback to 5 if not set
       if (!Number.isInteger(receiptValidDays) || receiptValidDays <= 0) {
         strapi.log.warn(`Invalid receiptValidDays value: ${receiptValidDays}. Using default of 5 days.`)
       }
@@ -150,7 +150,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
             oofd_uid: receiptData.oofd_uid,
             qrData,
             fiscalId: receiptData.fiscalId,
-            verificationStatus: 'auto_rejected',
+            verificationStatus: 'auto_rejected_late_submission',
             user: userId,
             date: receiptData.date,
             totalAmount: receiptData.totalAmount,

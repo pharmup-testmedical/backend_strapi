@@ -1,0 +1,20 @@
+{
+  "collectionName": "components_settings_promos",
+  "info": {
+    "displayName": "Акции",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "receiptValidDays": {
+      "type": "integer",
+      "required": true,
+      "default": 5
+    },
+    "deadlineNotificationDays": {
+      "type": "integer",
+      "default": 3,
+      "required": true
+    }
+  }
+}

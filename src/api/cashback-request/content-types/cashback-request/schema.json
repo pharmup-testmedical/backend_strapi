@@ -4,19 +4,13 @@
   "info": {
     "singularName": "cashback-request",
     "pluralName": "cashback-requests",
-    "displayName": "Запрос на кешбэк",
+    "displayName": "Вывод средств",
     "description": ""
   },
   "options": {
     "draftAndPublish": false
   },
   "attributes": {
-    "receipts": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::receipt.receipt",
-      "mappedBy": "cashbackRequest"
-    },
     "verificationStatus": {
       "type": "enumeration",
       "enum": [
@@ -31,6 +25,11 @@
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
       "inversedBy": "cashbackRequests"
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true,
+      "default": 500
     }
   }
 }

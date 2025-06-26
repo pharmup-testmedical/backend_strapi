@@ -13,8 +13,10 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                 return ctx.unauthorized('Пользователь должен быть аутентифицирован');
             }
 
-            // Fetch cashback-eligible and published products
-            const products = await strapi.entityService.findMany('api::product.product', {
+            const nowInGMT5 = new Date();
+            nowInGMT5.setHours(nowInGMT5.getUTCHours() + 5);
+
+            const products = await strapi.service('api::product.product').find({
                 filters: {
                     cashbackEligible: true,
                 },
@@ -32,21 +34,27 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                         fields: ['url', 'name', 'alternativeText'],
                     },
                 },
-                fields: ['id', 'canonicalName', 'cashbackEligible', 'cashbackAmount'],
-                status: 'published', // vs 'draft
+                fields: ['id', 'canonicalName', 'cashbackEligible', 'cashbackAmount', 'unpublishDate'],
+                publicationState: 'live',
             });
 
-            if (!products || products.length === 0) {
+            const availableProducts = products.results.filter(product => {
+                if (!product.unpublishDate) return true;
+                const unpublishDate = new Date(product.unpublishDate);
+                return unpublishDate > nowInGMT5;
+            });
+
+            if (availableProducts.length === 0) {
                 strapi.log.info(`No cashback-eligible products found for user ${ctx.state.user.id}`);
                 return ctx.notFound('Нет доступных продуктов с кэшбэком');
             }
 
-            strapi.log.info(`Retrieved ${products.length} cashback-eligible products for user ${ctx.state.user.id}`);
+            strapi.log.info(`Retrieved ${availableProducts.length} cashback-eligible products for user ${ctx.state.user.id}`);
             return ctx.send({
                 message: 'Продукты с кэшбэком успешно получены',
-                data: products,
+                data: availableProducts,
             });
-        } catch (error) {
+        } catch (error: any) {
             strapi.log.error(`Error retrieving cashback-eligible products for user ${ctx.state.user?.id || 'unknown'}: ${error.message}`);
             return ctx.internalServerError('Произошла ошибка при получении продуктов');
         }

@@ -404,7 +404,7 @@ export interface ApiCashbackRequestCashbackRequest
   collectionName: 'cashback_requests';
   info: {
     description: '';
-    displayName: '\u0417\u0430\u043F\u0440\u043E\u0441 \u043D\u0430 \u043A\u0435\u0448\u0431\u044D\u043A';
+    displayName: '\u0412\u044B\u0432\u043E\u0434 \u0441\u0440\u0435\u0434\u0441\u0442\u0432';
     pluralName: 'cashback-requests';
     singularName: 'cashback-request';
   };
@@ -412,6 +412,9 @@ export interface ApiCashbackRequestCashbackRequest
     draftAndPublish: false;
   };
   attributes: {
+    amount: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<500>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -422,7 +425,6 @@ export interface ApiCashbackRequestCashbackRequest
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
-    receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
     requester: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.user'
@@ -590,6 +592,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'api::product-alias.product-alias'
     >;
     publishedAt: Schema.Attribute.DateTime;
+    unpublishDate: Schema.Attribute.Date;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -626,6 +629,37 @@ export interface ApiPromoCarouselPromoCarousel extends Struct.SingleTypeSchema {
   };
 }
 
+export interface ApiPublicInformationPublicInformation
+  extends Struct.SingleTypeSchema {
+  collectionName: 'public_informations';
+  info: {
+    description: '';
+    displayName: '\u041F\u0443\u0431\u043B\u0438\u0447\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F';
+    pluralName: 'public-informations';
+    singularName: 'public-information';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    agreements: Schema.Attribute.Component<'public.agreements', false> &
+      Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::public-information.public-information'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
   collectionName: 'receipts';
   info: {
@@ -638,14 +672,11 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
-    cashbackRequest: Schema.Attribute.Relation<
-      'manyToOne',
-      'api::cashback-request.cashback-request'
-    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     date: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    finalCashback: Schema.Attribute.Decimal;
     fiscalId: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
@@ -685,6 +716,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
         'manual_review',
         'manually_verified',
         'manually_rejected',
+        'auto_rejected_late_submission',
       ]
     > &
       Schema.Attribute.Required;
@@ -737,6 +769,8 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    banking: Schema.Attribute.Component<'settings.banking', false> &
+      Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -746,10 +780,9 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
       'api::website-setup.website-setup'
     > &
       Schema.Attribute.Private;
+    promo: Schema.Attribute.Component<'settings.promo', false> &
+      Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
-    receiptValidDays: Schema.Attribute.Integer &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<5>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1282,6 +1315,7 @@ declare module '@strapi/strapi' {
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
+      'api::public-information.public-information': ApiPublicInformationPublicInformation;
       'api::receipt.receipt': ApiReceiptReceipt;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
       'api::website-setup.website-setup': ApiWebsiteSetupWebsiteSetup;

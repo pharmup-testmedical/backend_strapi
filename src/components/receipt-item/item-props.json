@@ -1,7 +1,7 @@
 {
   "collectionName": "components_receipt_item_item_props",
   "info": {
-    "displayName": "Свойства позиции в чеке",
+    "displayName": "Свойства позиции",
     "description": "Properties of a receipt item"
   },
   "options": {},

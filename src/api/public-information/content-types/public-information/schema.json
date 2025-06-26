@@ -1,0 +1,22 @@
+{
+  "kind": "singleType",
+  "collectionName": "public_informations",
+  "info": {
+    "singularName": "public-information",
+    "pluralName": "public-informations",
+    "displayName": "Публичная информация",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "agreements": {
+      "displayName": "agreements",
+      "type": "component",
+      "repeatable": false,
+      "component": "public.agreements",
+      "required": true
+    }
+  }
+}
