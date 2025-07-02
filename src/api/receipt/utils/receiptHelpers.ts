@@ -9,21 +9,21 @@ export const isValidDate = (dateString: string): boolean => {
 // Parse receipt data from QR link (Strapi backend version)
 export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any }) => {
     try {
-        let apiUrl = qrLink;
+        let apiUrl = qrLink
 
         // URL transformation debug
         if (!apiUrl.includes('https://consumer.oofd.kz/api/tickets/get-by-url?')) {
-            strapi.log.warn(`Invalid QR link format: ${qrLink}`);
-            throw new Error('Ошибка в формате QR-кода');
+            strapi.log.warn(`Invalid QR link format: ${qrLink}`)
+            throw new Error('Ошибка в формате QR-кода')
         }
 
-        strapi.log.info(`[Receipt] Making request to: ${apiUrl}`);
+        strapi.log.info(`[Receipt] Making request to: ${apiUrl}`)
 
         // Add debug for SSL config
         const httpsAgent = new https.Agent({
             rejectUnauthorized: false
-        });
-        strapi.log.info('[Receipt] SSL agent configured');
+        })
+        strapi.log.info('[Receipt] SSL agent configured')
 
         const response = await axios.get(apiUrl, {
             httpsAgent,
@@ -31,36 +31,36 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             headers: {
                 'Accept': 'application/json',
             }
-        });
+        })
 
-        strapi.log.info(`[Receipt] Response status: ${response.status}`);
-        strapi.log.info('[Receipt] Response headers:', JSON.stringify(response.headers));
+        strapi.log.info(`[Receipt] Response status: ${response.status}`)
+        strapi.log.info('[Receipt] Response headers:', JSON.stringify(response.headers))
 
         // Debug raw response before parsing
-        strapi.log.info('[Receipt] Raw response data type:', typeof response.data);
+        strapi.log.info('[Receipt] Raw response data type:', typeof response.data)
         strapi.log.info('[Receipt] First 200 chars of response:',
             typeof response.data === 'string'
                 ? response.data.substring(0, 200)
-                : JSON.stringify(response.data).substring(0, 200));
+                : JSON.stringify(response.data).substring(0, 200))
 
-        let data;
+        let data
         try {
             // Handle case where response.data might already be parsed
-            data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-            strapi.log.info('[Receipt] Successfully parsed JSON data');
+            data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+            strapi.log.info('[Receipt] Successfully parsed JSON data')
         } catch (parseError) {
-            strapi.log.error('[Receipt] JSON parse error:', parseError);
-            strapi.log.error('[Receipt] Failed to parse:', response.data);
-            throw new Error(`Invalid JSON response: ${parseError.message}`);
+            strapi.log.error('[Receipt] JSON parse error:', parseError)
+            strapi.log.error('[Receipt] Failed to parse:', response.data)
+            throw new Error(`Invalid JSON response: ${parseError.message}`)
         }
 
         // Debug parsed data structure
-        strapi.log.info('[Receipt] Parsed data keys:', Object.keys(data));
+        strapi.log.info('[Receipt] Parsed data keys:', Object.keys(data))
         if (data.ticket) {
-            strapi.log.info('[Receipt] Ticket ID:', data.ticket.fiscalId || 'Not found');
+            strapi.log.info('[Receipt] Ticket ID:', data.ticket.fiscalId || 'Not found')
         }
 
-        // Validate response (rest of your existing validation logic remains the same)
+        // Validate response
         if (!data.ticket || !data.ticket.fiscalId) {
             strapi.log.warn(`Invalid API response: missing ticket or fiscalId for ${apiUrl}`)
             throw new Error('Invalid receipt data: fiscal ID not found')
@@ -92,21 +92,23 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             throw new Error('Invalid receipt data: total amount not found')
         }
 
-        // Extract tax amount and tax rate from data.taxes (keep tax sum in kopecks)
+        // Extract tax amount and tax rate from data.taxes (optional, keep in kopecks)
         const taxes = data.taxes || []
-        if (taxes.length === 0) {
-            strapi.log.warn(`No taxes found in API response for ${apiUrl}`)
-            throw new Error('Invalid receipt data: taxes not found')
-        }
-        const taxAmount = taxes.reduce((sum: number, tax: any) => sum + (tax.sum || 0), 0)
-        const taxRate = taxes[0]?.rate || 0
-        if (typeof taxAmount !== 'number' || isNaN(taxAmount)) {
-            strapi.log.warn(`Invalid tax amount in API response: ${JSON.stringify(taxes)}`)
-            throw new Error('Invalid receipt data: tax amount not found')
-        }
-        if (typeof taxRate !== 'number' || isNaN(taxRate)) {
-            strapi.log.warn(`Invalid tax rate in API response: ${JSON.stringify(taxes)}`)
-            throw new Error('Invalid receipt data: tax rate not found')
+        let taxAmount = 0
+        let taxRate = 0
+        if (taxes.length > 0) {
+            taxAmount = taxes.reduce((sum: number, tax: any) => sum + (tax.sum || 0), 0)
+            taxRate = taxes[0]?.rate || 0
+            if (typeof taxAmount !== 'number' || isNaN(taxAmount)) {
+                strapi.log.warn(`Invalid tax amount in API response: ${JSON.stringify(taxes)}`)
+                throw new Error('Invalid receipt data: tax amount not found')
+            }
+            if (typeof taxRate !== 'number' || isNaN(taxRate)) {
+                strapi.log.warn(`Invalid tax rate in API response: ${JSON.stringify(taxes)}`)
+                throw new Error('Invalid receipt data: tax rate not found')
+            }
+        } else {
+            strapi.log.info(`[Receipt] No taxes found in API response for ${apiUrl}, proceeding with defaults`)
         }
 
         // Extract kktCode and kktSerialNumber
@@ -117,57 +119,59 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             throw new Error('Invalid receipt data: kktCode or kktSerialNumber not found')
         }
 
-        // Extract paymentMethod
-        const paymentMethod = ticket.payments?.[0]?.paymentType
-        if (!paymentMethod) {
-            strapi.log.warn(`Missing paymentMethod in API response: ${JSON.stringify(ticket.payments)}`)
-            throw new Error('Invalid receipt data: payment method not found')
+        // Extract paymentMethod (optional)
+        const paymentMethod = ticket.payments?.[0]?.paymentType || null
+        if (!ticket.payments?.[0]?.paymentType) {
+            strapi.log.info(`[Receipt] No payment method found in API response for ${apiUrl}, setting to null`)
         }
 
-        // Extract products
-        const products = ticket.items
-            .map((item: any, index: number) => {
-                const commodity = item.commodity || {}
-                const productData = {
-                    name: commodity.name || `Unknown_${index + 1}`,
-                    department: commodity.sectionCode || 'Unknown',
-                    unitPrice: commodity.price || 0,
-                    quantity: commodity.quantity || 1,
-                    measureUnit: commodity.measureUnitCode
-                        ? data.measureUnits?.[commodity.measureUnitCode] || 'unit'
-                        : 'unit',
-                    totalPrice: commodity.sum || 0,
-                }
-                if (
-                    !productData.name ||
-                    isNaN(productData.unitPrice) ||
-                    isNaN(productData.quantity) ||
-                    isNaN(productData.totalPrice) ||
-                    !productData.measureUnit ||
-                    !productData.department
-                ) {
-                    strapi.log.warn(`Invalid product at index ${index}: ${JSON.stringify(productData)}`)
-                    return null
-                }
-                return productData
-            })
-            .filter((item: any) => item)
+        // Extract items (optional)
+        const items = ticket.items?.length
+            ? ticket.items
+                .map((item: any, index: number) => {
+                    const commodity = item.commodity || {}
+                    const itemData = {
+                        name: commodity.name || `Unknown_${index + 1}`,
+                        department: commodity.sectionCode || 'Unknown',
+                        unitPrice: commodity.price || 0,
+                        quantity: commodity.quantity || 1,
+                        measureUnit: commodity.measureUnitCode
+                            ? data.measureUnits?.[commodity.measureUnitCode] || 'unit'
+                            : 'unit',
+                        totalPrice: commodity.sum || 0,
+                    }
+                    if (
+                        !itemData.name ||
+                        isNaN(itemData.unitPrice) ||
+                        isNaN(itemData.quantity) ||
+                        isNaN(itemData.totalPrice) ||
+                        !itemData.measureUnit ||
+                        !itemData.department
+                    ) {
+                        strapi.log.warn(`Invalid item at index ${index}: ${JSON.stringify(itemData)}`)
+                        return null
+                    }
+                    return itemData
+                })
+                .filter((item: any) => item)
+            : []
 
-        if (products.length === 0) {
-            strapi.log.warn(`No valid products found in API response for ${apiUrl}`)
-            throw new Error('Invalid receipt data: no products found')
+        if (items.length === 0) {
+            strapi.log.info(`[Receipt] No valid items found in API response for ${apiUrl}, proceeding with empty items`)
         }
 
-        // Validate totalAmount against sum of products' totalPrice
-        const productsTotal = products.reduce((sum: number, product: any) => sum + product.totalPrice, 0)
-        if (productsTotal !== totalAmount) {
-            strapi.log.warn(`Total amount mismatch: products total (${productsTotal}) does not match ticket total (${totalAmount})`)
-            throw new Error('Invalid receipt data: sum of product totals does not match total amount')
+        // Validate totalAmount against sum of items.totalPrice (only if items exist)
+        if (items.length > 0) {
+            const itemsTotal = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
+            if (itemsTotal !== totalAmount) {
+                strapi.log.warn(`Total amount mismatch: items total (${itemsTotal}) does not match ticket total (${totalAmount})`)
+                throw new Error('Invalid receipt data: sum of items totals does not match total amount')
+            }
         }
 
         // Log raw financial values for debugging
-        strapi.log.info(`Raw financial values: totalSum=${ticket.totalSum}, taxSum=${taxes[0]?.sum}, productPrice=${products[0]?.unitPrice}, productSum=${products[0]?.totalPrice}`)
-        strapi.log.info(`Parsed products: ${JSON.stringify(products, null, 2)}`)
+        strapi.log.info(`Raw financial values: totalSum=${ticket.totalSum}, taxSum=${taxes[0]?.sum || 0}, itemPrice=${items[0]?.unitPrice || 0}, itemSum=${items[0]?.totalPrice || 0}`)
+        strapi.log.info(`Parsed items: ${JSON.stringify(items, null, 2)}`)
         strapi.log.info(`Successfully parsed receipt data from ${apiUrl}`)
 
         return {
@@ -180,9 +184,8 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             kktCode,
             kktSerialNumber,
             paymentMethod,
-            products,
-        };
-
+            items,
+        }
     } catch (error: any) {
         strapi.log.error('[Receipt] Full error details:', {
             message: error.message,
@@ -194,7 +197,20 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
                     ? JSON.stringify(error.response.data)
                     : error.response.data
             } : undefined
-        });
-        throw error;
+        })
+        throw error
     }
-};
+}
+
+// Utility to calculate final cashback for a receipt
+export const calculateFinalCashback = (items: any[]): number => {
+    return items.reduce((total, item) => {
+        if (
+            item.__component === 'receipt-item.item' &&
+            ['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(item.verificationStatus)
+        ) {
+            return total + (item.cashback || 0)
+        }
+        return total
+    }, 0)
+}

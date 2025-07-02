@@ -34,7 +34,9 @@
         "manual_review",
         "manually_verified",
         "manually_rejected",
-        "auto_rejected_late_submission"
+        "auto_rejected_late_submission",
+        "auto_partially_verified",
+        "manually_partially_verified"
       ],
       "required": true
     },

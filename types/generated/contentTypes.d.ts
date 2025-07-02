@@ -434,7 +434,9 @@ export interface ApiCashbackRequestCashbackRequest
       Schema.Attribute.Private;
     verificationStatus: Schema.Attribute.Enumeration<
       ['pending', 'approved', 'rejected', 'manual_review']
-    >;
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
   };
 }
 
@@ -580,6 +582,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
     image: Schema.Attribute.Media<'images' | 'files'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -717,6 +720,8 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
         'manually_verified',
         'manually_rejected',
         'auto_rejected_late_submission',
+        'auto_partially_verified',
+        'manually_partially_verified',
       ]
     > &
       Schema.Attribute.Required;

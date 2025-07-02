@@ -1,8 +1,8 @@
 import type { Core } from '@strapi/strapi';
-import {
-  registerProductAliasMiddleware,
-  // registerAliasVerifierMiddleware
-} from './middlewares/document-service-middlewares';
+// import {
+//   registerProductAliasMiddleware,
+//   registerAliasVerifierMiddleware
+// } from './middlewares/document-service-middlewares';
 
 export default {
   /**
@@ -16,7 +16,7 @@ export default {
     // registerAliasVerifierMiddleware({ strapi });
     
     // Register existing product alias middleware second
-    registerProductAliasMiddleware({ strapi });
+    // registerProductAliasMiddleware({ strapi });
   },
 
   /**

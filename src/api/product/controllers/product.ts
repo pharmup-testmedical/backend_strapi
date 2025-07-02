@@ -41,17 +41,18 @@ export default factories.createCoreController('api::product.product', ({ strapi 
             const availableProducts = products.results.filter(product => {
                 if (!product.unpublishDate) return true;
                 const unpublishDate = new Date(product.unpublishDate);
-                return unpublishDate > nowInGMT5;
+                unpublishDate.setHours(23, 59, 59, 999); // Set to end of day
+                return unpublishDate >= nowInGMT5;
             });
 
             if (availableProducts.length === 0) {
                 strapi.log.info(`No cashback-eligible products found for user ${ctx.state.user.id}`);
-                return ctx.notFound('Нет доступных продуктов с кэшбэком');
+                return ctx.notFound('Нет доступных продуктов с кешбэком');
             }
 
             strapi.log.info(`Retrieved ${availableProducts.length} cashback-eligible products for user ${ctx.state.user.id}`);
             return ctx.send({
-                message: 'Продукты с кэшбэком успешно получены',
+                message: 'Продукты с кешбэком успешно получены',
                 data: availableProducts,
             });
         } catch (error: any) {

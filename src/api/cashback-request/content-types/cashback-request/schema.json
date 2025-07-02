@@ -18,7 +18,9 @@
         "approved",
         "rejected",
         "manual_review"
-      ]
+      ],
+      "default": "pending",
+      "required": true
     },
     "requester": {
       "type": "relation",

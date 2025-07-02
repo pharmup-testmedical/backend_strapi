@@ -56,6 +56,9 @@
     },
     "unpublishDate": {
       "type": "date"
+    },
+    "description": {
+      "type": "text"
     }
   }
 }
