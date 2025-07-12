@@ -9,12 +9,19 @@ export const isValidDate = (dateString: string): boolean => {
 // Parse receipt data from QR link (Strapi backend version)
 export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any }) => {
     try {
-        let apiUrl = qrLink
+        let apiUrl = qrLink;
 
-        // URL transformation debug
+        // If the input doesn't start with http, assume it's just parameters and construct full URL
+        if (!qrLink.startsWith('http')) {
+            // Ensure parameters start with ?
+            const params = qrLink.startsWith('?') ? qrLink : `?${qrLink}`;
+            apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`;
+        }
+
+        // Rest of your existing code...
         if (!apiUrl.includes('https://consumer.oofd.kz/api/tickets/get-by-url?')) {
-            strapi.log.warn(`Invalid QR link format: ${qrLink}`)
-            throw new Error('Ошибка в формате QR-кода')
+            strapi.log.warn(`Invalid QR link format: ${qrLink}`);
+            throw new Error('Ошибка в формате QR-кода');
         }
 
         strapi.log.info(`[Receipt] Making request to: ${apiUrl}`)

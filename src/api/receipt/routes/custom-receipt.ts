@@ -13,6 +13,11 @@ export default {
             method: 'GET',
             path: '/receipts/me',
             handler: 'receipt.me',
-        }
+        },
+        {
+            method: 'POST',
+            path: '/receipts/read-ofd-ticket',
+            handler: 'receipt.readOFD',
+        },
     ],
 };
