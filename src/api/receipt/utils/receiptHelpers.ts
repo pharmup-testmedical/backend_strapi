@@ -216,7 +216,9 @@ export const calculateFinalCashback = (items: any[]): number => {
             item.__component === 'receipt-item.item' &&
             ['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(item.verificationStatus)
         ) {
-            return total + (item.cashback || 0)
+            // Multiply cashback amount by quantity
+            const quantity = item.props?.quantity || 1
+            return total + ((item.cashback || 0) * quantity)
         }
         return total
     }, 0)
