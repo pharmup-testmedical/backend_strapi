@@ -42,4 +42,11 @@ export default ({ env }) => ({
             },
         },
     },
+    migrations5p: {
+        enabled: true,
+        config: {
+            autoStart: true,
+            migrationFolderPath: process.env.MIGRATION_PATH,
+        },
+    },
 });

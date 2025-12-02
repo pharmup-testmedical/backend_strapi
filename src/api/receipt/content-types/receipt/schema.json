@@ -13,7 +13,7 @@
   "attributes": {
     "oofd_uid": {
       "type": "string",
-      "required": true,
+      "required": false,
       "unique": true
     },
     "qrData": {
@@ -83,6 +83,15 @@
     },
     "finalCashback": {
       "type": "decimal"
+    },
+    "ofdType": {
+      "type": "enumeration",
+      "enum": [
+        "oofd",
+        "kofd",
+        "wofd"
+      ],
+      "required": true
     }
   }
 }

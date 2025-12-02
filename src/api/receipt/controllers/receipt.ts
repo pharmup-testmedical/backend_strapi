@@ -2,9 +2,9 @@
  * receipt controller
  */
 import { factories } from '@strapi/strapi'
-import { parseReceiptData, calculateFinalCashback } from '../utils/receiptHelpers'
-import https from 'https'
-import axios from 'axios'
+import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
+// import https from 'https'
+// import axios from 'axios'
 
 // Interfaces for type safety
 interface Product {
@@ -57,10 +57,11 @@ interface SubmitContext {
   qrData: string
   itemMappings: { [itemName: string]: string } // key: CashbackItem -> value: documentId of Product
   userId: string
+  ofdType: 'oofd' | 'kofd' | 'wofd'
 }
 
 interface ReceiptData {
-  oofd_uid: string
+  oofd_uid?: string
   fiscalId: string
   date: string
   totalAmount: number
@@ -70,23 +71,39 @@ interface ReceiptData {
   kktSerialNumber: string
   paymentMethod?: string
   items: any[]
+  ofdType: 'oofd' | 'kofd' | 'wofd'
 }
 
 export default factories.createCoreController('api::receipt.receipt', ({ strapi }) => ({
   async submit(ctx: any) {
     try {
-      const { qrData, itemMappings }: { qrData: string; itemMappings: { [itemName: string]: string } } = ctx.request.body
-      const userId = ctx.state.user.id
-      strapi.log.info(`Received receipt submission from user with id: ${userId}`)
+      const {
+        qrData,
+        itemMappings,
+        ofdType = 'oofd'
+      }: {
+        qrData: string;
+        itemMappings: { [itemName: string]: string },
+        ofdType: 'oofd' | 'kofd' | 'wofd';
+      } = ctx.request.body
 
-      const context: SubmitContext = { ctx, qrData, itemMappings, userId }
+      // Validate ofdType is provided
+      if (!ofdType) {
+        throw new Error('Тип ОФД обязателен (oofd, kofd, или wofd)')
+      }
+
+      const userId = ctx.state.user.id
+      strapi.log.info(`Received receipt submission from user with id: ${userId} for OFD type: ${ofdType}`)
+
+      const context: SubmitContext = { ctx, qrData, itemMappings, userId, ofdType }
       await validateInput(context)
 
-      const rawReceiptData = await parseReceiptData(qrData, { strapi })
+      const rawReceiptData = await parseReceiptByOfdType(qrData, ofdType, { strapi })
       // Convert Date to string if necessary
       const receiptData: ReceiptData = {
         ...rawReceiptData,
         date: rawReceiptData.date instanceof Date ? rawReceiptData.date.toISOString() : rawReceiptData.date,
+        ofdType
       }
 
       await checkForDuplicateReceipt(context, receiptData)
@@ -146,65 +163,29 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
     }
   },
 
-  async readOFD(ctx) {
-    const { fiscalUrl } = ctx.request.body;
+  async readOFD(ctx: any) {
+    const { fiscalUrl, ofdType = 'oofd' } = ctx.request.body
 
     if (!fiscalUrl) {
-      return ctx.badRequest('Fiscal URL is required');
+      return ctx.badRequest('Fiscal URL is required')
     }
 
-    // Declare apiUrl at the function scope
-    let apiUrl = '';
+    if (!ofdType) {
+      return ctx.badRequest('OFD type is required (oofd, kofd, or wofd)')
+    }
 
     try {
-      // Step 1: Normalize the URL format
-      apiUrl = fiscalUrl.trim();
+      // Use the appropriate parser based on OFD type
+      const receiptData = await parseReceiptByOfdType(fiscalUrl, ofdType, { strapi })
 
-      // Fix common malformed URL cases
-      // Case 1: Missing protocol
-      if (/^consumer\.oofd\.kz/i.test(apiUrl)) {
-        apiUrl = `https://${apiUrl}`;
-      }
-      // Case 2: Just parameters without URL
-      else if (/^(i=|f=|s=|t=)/i.test(apiUrl)) {
-        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url?${apiUrl}`;
-      }
-
-      // Step 2: Extract and validate parameters
-      let params;
-      try {
-        const urlObj = new URL(apiUrl);
-        params = Object.fromEntries(urlObj.searchParams.entries());
-
-        // Validate we have i/f/s/t
-        if (!params.i || !params.f || !params.s || !params.t) {
-          throw new Error('Missing required parameters');
-        }
-
-        // Reconstruct properly formatted URL
-        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url?${new URLSearchParams(params).toString()}`;
-      } catch (e) {
-        throw new Error(`Invalid URL format: ${fiscalUrl}`);
-      }
-
-      strapi.log.info(`Processing receipt URL: ${apiUrl}`);
-
-      // Step 3: Call parseReceiptData to handle the API request and parsing
-      const receiptData = await parseReceiptData(apiUrl, { strapi });
-
-      // Step 4: Return formatted data
       ctx.send({
-        url: apiUrl,
+        ofdType,
         receiptData
-      });
+      })
 
-    } catch (error) {
-      strapi.log.error('[resolveFiscalUrl] Error:', {
-        message: error.message,
-        inputUrl: fiscalUrl,
-        normalizedUrl: apiUrl
-      });
-      ctx.throw(400, error.message);
+    } catch (error: any) {
+      strapi.log.error(`[readOFD] Error for ${ofdType}:`, error.message)
+      ctx.throw(400, error.message)
     }
   }
 }))
@@ -458,6 +439,7 @@ async function handleLateSubmission({ ctx, userId }: SubmitContext, receiptData:
       kktCode: receiptData.kktCode,
       kktSerialNumber: receiptData.kktSerialNumber,
       paymentMethod: receiptData.paymentMethod,
+      ofdType: receiptData.ofdType,
       items,
       finalCashback,
     },
@@ -478,7 +460,7 @@ async function createReceipt(
   hasRejected: boolean,
   hasNonVerified: boolean
 ) {
-  let receiptVerificationStatus: ReceiptVerificationStatus
+  let receiptVerificationStatus: ReceiptVerificationStatus = 'manual_review'
 
   if (hasNonVerified) {
     receiptVerificationStatus = 'manual_review'
@@ -507,6 +489,7 @@ async function createReceipt(
       kktCode: receiptData.kktCode,
       kktSerialNumber: receiptData.kktSerialNumber,
       paymentMethod: receiptData.paymentMethod,
+      ofdType: receiptData.ofdType,
       items,
       finalCashback,
     },

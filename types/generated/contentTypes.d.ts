@@ -694,9 +694,9 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       'api::receipt.receipt'
     > &
       Schema.Attribute.Private;
-    oofd_uid: Schema.Attribute.String &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    ofdType: Schema.Attribute.Enumeration<['oofd', 'kofd', 'wofd']> &
+      Schema.Attribute.Required;
+    oofd_uid: Schema.Attribute.String & Schema.Attribute.Unique;
     paymentMethod: Schema.Attribute.String & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
     qrData: Schema.Attribute.String &

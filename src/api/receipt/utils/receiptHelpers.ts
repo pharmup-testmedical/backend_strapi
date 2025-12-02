@@ -1,37 +1,46 @@
 import axios from 'axios'
 import https from 'https'
 
-// Utility to validate date strings
 export const isValidDate = (dateString: string): boolean => {
     return !isNaN(Date.parse(dateString))
 }
 
-// Parse receipt data from QR link (Strapi backend version)
-export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any }) => {
+export const parseReceiptByOfdType = async (
+    qrData: string,
+    ofdType: 'oofd' | 'kofd' | 'wofd',
+    { strapi }: { strapi: any }
+) => {
+    switch (ofdType) {
+        case 'oofd':
+            return await parseOofdReceipt(qrData, { strapi })
+        case 'kofd':
+            return await parseKofdReceipt(qrData, { strapi })
+        case 'wofd':
+            return await parseWofdReceipt(qrData, { strapi })
+        default:
+            throw new Error(`Unsupported OFD type: ${ofdType}`)
+    }
+}
+
+const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => {
+    let apiUrl = qrLink
+
+    if (!qrLink.startsWith('http')) {
+        const params = qrLink.startsWith('?') ? qrLink : `?${qrLink}`
+        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`
+    } else if (qrLink.includes('consumer.oofd.kz') && !qrLink.includes('/api/tickets/get-by-url')) {
+        const urlObj = new URL(qrLink)
+        const params = urlObj.search
+        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`
+    }
+
+    strapi.log.info(`[OOFD] Making request to: ${apiUrl}`)
+
+    const httpsAgent = new https.Agent({
+        rejectUnauthorized: false
+    })
+
     try {
-        let apiUrl = qrLink;
-
-        // If the input doesn't start with http, assume it's just parameters and construct full URL
-        if (!qrLink.startsWith('http')) {
-            // Ensure parameters start with ?
-            const params = qrLink.startsWith('?') ? qrLink : `?${qrLink}`;
-            apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`;
-        }
-
-        // Rest of your existing code...
-        if (!apiUrl.includes('https://consumer.oofd.kz/api/tickets/get-by-url?')) {
-            strapi.log.warn(`Invalid QR link format: ${qrLink}`);
-            throw new Error('Ошибка в формате QR-кода');
-        }
-
-        strapi.log.info(`[Receipt] Making request to: ${apiUrl}`)
-
-        // Add debug for SSL config
-        const httpsAgent = new https.Agent({
-            rejectUnauthorized: false
-        })
-        strapi.log.info('[Receipt] SSL agent configured')
-
         const response = await axios.get(apiUrl, {
             httpsAgent,
             timeout: 10000,
@@ -40,34 +49,14 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             }
         })
 
-        strapi.log.info(`[Receipt] Response status: ${response.status}`)
-        strapi.log.info('[Receipt] Response headers:', JSON.stringify(response.headers))
-
-        // Debug raw response before parsing
-        strapi.log.info('[Receipt] Raw response data type:', typeof response.data)
-        strapi.log.info('[Receipt] First 200 chars of response:',
-            typeof response.data === 'string'
-                ? response.data.substring(0, 200)
-                : JSON.stringify(response.data).substring(0, 200))
-
         let data
         try {
-            // Handle case where response.data might already be parsed
             data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
-            strapi.log.info('[Receipt] Successfully parsed JSON data')
-        } catch (parseError) {
-            strapi.log.error('[Receipt] JSON parse error:', parseError)
-            strapi.log.error('[Receipt] Failed to parse:', response.data)
+        } catch (parseError: any) {
+            strapi.log.error('[OOFD] JSON parse error:', parseError)
             throw new Error(`Invalid JSON response: ${parseError.message}`)
         }
 
-        // Debug parsed data structure
-        strapi.log.info('[Receipt] Parsed data keys:', Object.keys(data))
-        if (data.ticket) {
-            strapi.log.info('[Receipt] Ticket ID:', data.ticket.fiscalId || 'Not found')
-        }
-
-        // Validate response
         if (!data.ticket || !data.ticket.fiscalId) {
             strapi.log.warn(`Invalid API response: missing ticket or fiscalId for ${apiUrl}`)
             throw new Error('Invalid receipt data: fiscal ID not found')
@@ -75,31 +64,26 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
 
         const ticket = data.ticket
 
-        // Extract oofd_uid
         const oofd_uid = ticket.transactionId
         if (!oofd_uid) {
             strapi.log.warn(`Invalid API response: missing transactionId for ${apiUrl}`)
             throw new Error('Invalid receipt data: transaction ID not found')
         }
 
-        // Extract fiscal ID
         const fiscalId = ticket.fiscalId
 
-        // Extract date
         const date = new Date(ticket.transactionDate)
         if (isNaN(date.getTime())) {
             strapi.log.warn(`Invalid date format in API response: ${ticket.transactionDate}`)
             throw new Error('Invalid receipt data: date not found')
         }
 
-        // Extract total amount (keep in kopecks)
         const totalAmount = ticket.totalSum
         if (typeof totalAmount !== 'number' || isNaN(totalAmount)) {
             strapi.log.warn(`Invalid total amount in API response: ${ticket.totalSum}`)
             throw new Error('Invalid receipt data: total amount not found')
         }
 
-        // Extract tax amount and tax rate from data.taxes (optional, keep in kopecks)
         const taxes = data.taxes || []
         let taxAmount = 0
         let taxRate = 0
@@ -114,11 +98,8 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
                 strapi.log.warn(`Invalid tax rate in API response: ${JSON.stringify(taxes)}`)
                 throw new Error('Invalid receipt data: tax rate not found')
             }
-        } else {
-            strapi.log.info(`[Receipt] No taxes found in API response for ${apiUrl}, proceeding with defaults`)
         }
 
-        // Extract kktCode and kktSerialNumber
         const kktCode = data.kkmFnsId
         const kktSerialNumber = data.kkmSerialNumber
         if (!kktCode || !kktSerialNumber) {
@@ -126,13 +107,8 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             throw new Error('Invalid receipt data: kktCode or kktSerialNumber not found')
         }
 
-        // Extract paymentMethod (optional)
         const paymentMethod = ticket.payments?.[0]?.paymentType || null
-        if (!ticket.payments?.[0]?.paymentType) {
-            strapi.log.info(`[Receipt] No payment method found in API response for ${apiUrl}, setting to null`)
-        }
 
-        // Extract items (optional)
         const items = ticket.items?.length
             ? ticket.items
                 .map((item: any, index: number) => {
@@ -163,11 +139,6 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
                 .filter((item: any) => item)
             : []
 
-        if (items.length === 0) {
-            strapi.log.info(`[Receipt] No valid items found in API response for ${apiUrl}, proceeding with empty items`)
-        }
-
-        // Validate totalAmount against sum of items.totalPrice (only if items exist)
         if (items.length > 0) {
             const itemsTotal = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
             if (itemsTotal !== totalAmount) {
@@ -176,10 +147,7 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             }
         }
 
-        // Log raw financial values for debugging
-        strapi.log.info(`Raw financial values: totalSum=${ticket.totalSum}, taxSum=${taxes[0]?.sum || 0}, itemPrice=${items[0]?.unitPrice || 0}, itemSum=${items[0]?.totalPrice || 0}`)
-        strapi.log.info(`Parsed items: ${JSON.stringify(items, null, 2)}`)
-        strapi.log.info(`Successfully parsed receipt data from ${apiUrl}`)
+        strapi.log.info(`Successfully parsed OOFD receipt data from ${apiUrl}`)
 
         return {
             oofd_uid,
@@ -194,32 +162,446 @@ export const parseReceiptData = async (qrLink: string, { strapi }: { strapi: any
             items,
         }
     } catch (error: any) {
-        strapi.log.error('[Receipt] Full error details:', {
+        strapi.log.error('[OOFD] Request error:', {
             message: error.message,
-            stack: error.stack,
+            url: apiUrl,
             response: error.response ? {
                 status: error.response.status,
-                headers: error.response.headers,
-                data: typeof error.response.data === 'object'
-                    ? JSON.stringify(error.response.data)
-                    : error.response.data
+                data: error.response.data
             } : undefined
         })
-        throw error
+        throw new Error(`OOFD request failed: ${error.message}`)
     }
 }
 
-// Utility to calculate final cashback for a receipt
+const parseKofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => {
+    try {
+        let apiUrl = qrLink
+
+        if (!qrLink.startsWith('http')) {
+            const params = new URLSearchParams(qrLink.startsWith('?') ? qrLink.slice(1) : qrLink)
+            const registrationNumber = params.get('f') || params.get('registrationNumber')
+            const ticketNumber = params.get('i') || params.get('ticketNumber')
+
+            if (registrationNumber && ticketNumber) {
+                apiUrl = `https://cabinet.kofd.kz/api/tickets?registrationNumber=${registrationNumber}&ticketNumber=${ticketNumber}`
+            } else {
+                throw new Error('Missing required parameters: registrationNumber and ticketNumber')
+            }
+        } else if (qrLink.includes('cabinet.kofd.kz/consumer')) {
+            const urlObj = new URL(qrLink)
+            const i = urlObj.searchParams.get('i')
+            const f = urlObj.searchParams.get('f')
+
+            if (i && f) {
+                apiUrl = `https://cabinet.kofd.kz/api/tickets?registrationNumber=${f}&ticketNumber=${i}`
+            } else {
+                throw new Error('Missing required parameters in consumer URL')
+            }
+        }
+
+        strapi.log.info(`[KOFD] Making request to: ${apiUrl}`)
+
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false })
+        const response = await axios.get(apiUrl, {
+            httpsAgent,
+            timeout: 10000,
+            headers: { 'Accept': 'application/json' }
+        })
+
+        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+
+        const receiptData = data.data || data
+
+        if (!receiptData.found || receiptData.found === 0) {
+            strapi.log.warn(`KOFD receipt not found: ${JSON.stringify(data).substring(0, 200)}`)
+            throw new Error('Receipt not found in KOFD system')
+        }
+
+        return await parseKofdTextData(receiptData, apiUrl, strapi)
+    } catch (error: any) {
+        strapi.log.error('[KOFD] Error:', error)
+        throw new Error(`KOFD parsing failed: ${error.message}`)
+    }
+}
+
+const parseKofdTextData = async (data: any, apiUrl: string, strapi: any) => {
+    const textLines = data.ticket.map((line: any) =>
+        Buffer.from(line.text, 'utf8').toString()
+    )
+
+    const extractedData = extractDataFromKofdTextLines(textLines, strapi)
+
+    let taxRate = extractedData.taxRate
+    if (extractedData.taxAmount > 0 && extractedData.totalAmount > 0 && taxRate === 0) {
+        taxRate = Math.round((extractedData.taxAmount / extractedData.totalAmount) * 10000) / 10000
+    }
+
+    return {
+        fiscalId: extractedData.fiscalId,
+        date: extractedData.date,
+        totalAmount: extractedData.totalAmount,
+        taxAmount: extractedData.taxAmount,
+        taxRate: taxRate,
+        kktCode: extractedData.kktCode,
+        kktSerialNumber: extractedData.kktSerialNumber,
+        paymentMethod: extractedData.paymentMethod,
+        items: extractedData.items,
+    }
+}
+
+const parseWofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => {
+    try {
+        let apiUrl = qrLink
+
+        if (!qrLink.startsWith('http')) {
+            const params = new URLSearchParams(qrLink.startsWith('?') ? qrLink.slice(1) : qrLink)
+            const registrationNumber = params.get('f') || params.get('registrationNumber')
+            const ticketNumber = params.get('i') || params.get('ticketNumber')
+
+            if (registrationNumber && ticketNumber) {
+                apiUrl = `https://cabinet.wofd.kz/api/tickets?registrationNumber=${registrationNumber}&ticketNumber=${ticketNumber}`
+            } else {
+                throw new Error('Missing required parameters: registrationNumber and ticketNumber')
+            }
+        } else if (qrLink.includes('consumer.wofd.kz')) {
+            const urlObj = new URL(qrLink)
+            const i = urlObj.searchParams.get('i')
+            const f = urlObj.searchParams.get('f')
+
+            if (i && f) {
+                apiUrl = `https://cabinet.wofd.kz/api/tickets?registrationNumber=${f}&ticketNumber=${i}`
+            } else {
+                throw new Error('Missing required parameters in consumer URL')
+            }
+        }
+
+        strapi.log.info(`[WOFD] Making request to: ${apiUrl}`)
+
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false })
+        const response = await axios.get(apiUrl, {
+            httpsAgent,
+            timeout: 10000,
+            headers: { 'Accept': 'application/json' }
+        })
+
+        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+
+        if (!data.found || data.found === 0) {
+            throw new Error('Receipt not found in WOFD system')
+        }
+
+        return await parseWofdTextData(data, apiUrl, strapi)
+    } catch (error: any) {
+        strapi.log.error('[WOFD] Error:', error)
+        throw new Error(`WOFD parsing failed: ${error.message}`)
+    }
+}
+
+const parseWofdTextData = async (data: any, apiUrl: string, strapi: any) => {
+    const textLines = data.ticket.map((line: any) =>
+        Buffer.from(line.text, 'utf8').toString()
+    )
+
+    const extractedData = extractDataFromWofdTextLines(textLines, strapi)
+
+    let taxRate = extractedData.taxRate
+    if (extractedData.taxAmount > 0 && extractedData.totalAmount > 0 && taxRate === 0) {
+        taxRate = Math.round((extractedData.taxAmount / extractedData.totalAmount) * 10000) / 10000
+    }
+
+    return {
+        fiscalId: extractedData.fiscalId,
+        date: extractedData.date,
+        totalAmount: extractedData.totalAmount,
+        taxAmount: extractedData.taxAmount,
+        taxRate: taxRate,
+        kktCode: extractedData.kktCode,
+        kktSerialNumber: extractedData.kktSerialNumber,
+        paymentMethod: extractedData.paymentMethod,
+        items: extractedData.items,
+    }
+}
+
+const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
+    const result: any = {
+        fiscalId: '',
+        date: null,
+        totalAmount: 0,
+        items: [],
+        kktCode: '',
+        kktSerialNumber: '',
+        taxAmount: 0,
+        taxRate: 0,
+        paymentMethod: ''
+    }
+
+    let currentProductName = ''
+    let collectingProductName = false
+
+    for (let i = 0; i < textLines.length; i++) {
+        const text = textLines[i].trim()
+
+        if ((text.includes('ФИСКАЛДЫҚ БЕЛГІ') || text.includes('ФИСКАЛЬНЫЙ ПРИЗНАК')) && !result.fiscalId) {
+            const fiscalMatch = text.match(/(\d{12})/)
+            if (fiscalMatch) {
+                result.fiscalId = fiscalMatch[1]
+            }
+        }
+
+        if ((text.includes('УАҚЫТЫ') || text.includes('ВРЕМЯ')) && !result.date) {
+            const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2})/)
+            if (dateMatch) {
+                const [day, month, year] = dateMatch[1].split(' ')[0].split('.')
+                const time = dateMatch[1].split(' ')[1]
+                result.date = new Date(`${year}-${month}-${day}T${time}`)
+            }
+        }
+
+        if ((text.includes('БАРЛЫҒЫ') || text.includes('ИТОГО')) && result.totalAmount === 0) {
+            let amountMatch = text.match(/([\d\s,]+)₸/)
+
+            if (!amountMatch && i + 1 < textLines.length) {
+                const nextLine = textLines[i + 1].trim()
+                amountMatch = nextLine.match(/([\d\s,]+)₸/)
+            }
+
+            if (amountMatch) {
+                const rawAmount = amountMatch[1].trim()
+                const amount = parseKazakhNumber(rawAmount)
+                if (!isNaN(amount)) {
+                    result.totalAmount = Math.round(amount)
+                }
+            }
+        }
+
+        if ((text.includes('КЗН') || text.includes('ЗНМ')) && !result.kktSerialNumber) {
+            const kkmMatch = text.match(/([A-Z0-9]{8,12})/)
+            if (kkmMatch) {
+                result.kktSerialNumber = kkmMatch[1]
+            }
+        }
+
+        if ((text.includes('КТН') || text.includes('РНМ')) && !result.kktCode) {
+            const kktMatch = text.match(/(\d{12})/)
+            if (kktMatch) {
+                result.kktCode = kktMatch[1]
+            }
+        }
+
+        if (text.includes('Банковская карта') && !result.paymentMethod) {
+            result.paymentMethod = 'CARD'
+        } else if ((text.includes('Қолма-қол') || text.includes('Наличные')) && !result.paymentMethod) {
+            result.paymentMethod = 'CASH'
+        }
+
+        // Detect product name lines - KOFD specific pattern
+        const isProductStart = text.match(/^\d+\s+[A-ZА-Я]/) &&
+            !text.includes('₸') &&
+            !text.includes('(Штука)')
+
+        if (isProductStart) {
+            // Start new product name
+            currentProductName = text
+            collectingProductName = true
+        }
+        // Check if this is a continuation line (comes after a product name line but before price line)
+        else if (collectingProductName &&
+            !text.includes('₸') &&
+            !text.includes('(Штука)') &&
+            text.length > 0 &&
+            !text.includes('ИТОГО') &&
+            !text.includes('БАРЛЫҒЫ') &&
+            !text.includes('ФИСКАЛДЫҚ') &&
+            !text.includes('УАҚЫТЫ') &&
+            !text.includes('Чектің') &&
+            !text.includes('Ауысым') &&
+            !text.includes('КАССИР') &&
+            !text.includes('КЗН') &&
+            !text.includes('КТН')) {
+
+            // This is a continuation of the product name
+            // Remove trailing spaces from current name and add the continuation
+            currentProductName = currentProductName.replace(/\s+$/, '') + ' ' + text
+        }
+
+        // When we find a price line, finalize the current product
+        if (text.includes('(Штука)') && text.includes('₸') && text.includes('=')) {
+            const itemMatch = text.match(/(\d+)\s+\(Штука\)\s+x\s+([\d ,.]+)₸\s+=\s+([\d ,.]+)₸/)
+            if (itemMatch && currentProductName) {
+                const quantity = parseInt(itemMatch[1])
+                const unitPrice = parseFloat(itemMatch[2].replace(',', '.'))
+                const totalPrice = parseFloat(itemMatch[3].replace(',', '.'))
+
+                if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
+                    result.items.push({
+                        name: currentProductName,
+                        department: '1',
+                        unitPrice: Math.round(unitPrice),
+                        quantity: quantity,
+                        measureUnit: 'штука',
+                        totalPrice: Math.round(totalPrice)
+                    })
+
+                    currentProductName = ''
+                    collectingProductName = false
+                }
+            }
+        }
+    }
+
+    if (!result.date) throw new Error('Could not extract date from KOFD receipt')
+    if (!result.fiscalId) throw new Error('Could not extract fiscal ID from KOFD receipt')
+    if (result.totalAmount === 0) throw new Error('Could not extract total amount from KOFD receipt')
+
+    strapi.log.info(`[KOFD] Extracted: ${result.items.length} items, total: ${result.totalAmount}`)
+
+    return result
+}
+
+const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
+    const result: any = {
+        fiscalId: '',
+        date: null,
+        totalAmount: 0,
+        items: [],
+        kktCode: '',
+        kktSerialNumber: '',
+        taxAmount: 0,
+        taxRate: 0,
+        paymentMethod: ''
+    }
+
+    let currentProductName = ''
+
+    for (let i = 0; i < textLines.length; i++) {
+        const text = textLines[i].trim()
+
+        if ((text.includes('Фискалдық белгі') || text.includes('Фискальный признак')) && !result.fiscalId) {
+            const fiscalMatch = text.match(/(\d{12})/)
+            if (fiscalMatch) {
+                result.fiscalId = fiscalMatch[1]
+            }
+        }
+
+        if ((text.includes('УАҚЫТЫ') || text.includes('ВРЕМЯ')) && !result.date) {
+            const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2})/)
+            if (dateMatch) {
+                const [day, month, year] = dateMatch[1].split(' ')[0].split('.')
+                const time = dateMatch[1].split(' ')[1]
+                result.date = new Date(`${year}-${month}-${day}T${time}`)
+            }
+        }
+
+        if ((text.includes('БАРЛЫҒЫ') || text.includes('ИТОГО')) && result.totalAmount === 0) {
+            let amountMatch = text.match(/([\d\s,]+)₸/)
+
+            if (!amountMatch && i + 1 < textLines.length) {
+                const nextLine = textLines[i + 1].trim()
+                amountMatch = nextLine.match(/([\d\s,]+)₸/)
+            }
+
+            if (amountMatch) {
+                const rawAmount = amountMatch[1].trim()
+                const amount = parseKazakhNumber(rawAmount)
+                if (!isNaN(amount)) {
+                    result.totalAmount = Math.round(amount)
+                }
+            }
+        }
+
+        if ((text.includes('КЗН') || text.includes('ЗНМ')) && !result.kktSerialNumber) {
+            const kkmMatch = text.match(/([A-Z0-9]{8,12})/)
+            if (kkmMatch) {
+                result.kktSerialNumber = kkmMatch[1]
+            }
+        }
+
+        if ((text.includes('КТН') || text.includes('РНМ')) && !result.kktCode) {
+            const kktMatch = text.match(/(\d{12})/)
+            if (kktMatch) {
+                result.kktCode = kktMatch[1]
+            }
+        }
+
+        if ((text.includes('ҚҚС жалпы сомасы') || text.includes('Общая сумма НДС')) && result.taxAmount === 0) {
+            const taxMatch = text.match(/([\d\s,]+)\s*₸/)
+            if (taxMatch) {
+                const taxAmount = parseKazakhNumber(taxMatch[1].trim())
+                if (!isNaN(taxAmount)) {
+                    result.taxAmount = Math.round(taxAmount)
+                }
+            }
+        }
+
+        if (text.includes('Банковская карта') && !result.paymentMethod) {
+            result.paymentMethod = 'CARD'
+        } else if ((text.includes('Қолма-қол') || text.includes('Наличные')) && !result.paymentMethod) {
+            result.paymentMethod = 'CASH'
+        }
+
+        // WOFD: Product name is on the line before the price line
+        if (!text.includes('(Дана/Штука)') &&
+            !text.includes('₸') &&
+            !text.includes('ИТОГО') &&
+            !text.includes('БАРЛЫҒЫ') &&
+            text.length > 2 &&
+            i + 1 < textLines.length &&
+            textLines[i + 1].trim().includes('(Дана/Штука)')) {
+
+            currentProductName = text
+        }
+
+        if (text.includes('(Дана/Штука)') && text.includes('x') && text.includes('=')) {
+            let itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
+
+            if (!itemMatch) {
+                itemMatch = text.match(/(\d+)\s+\(.*?\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
+            }
+
+            if (itemMatch) {
+                const quantity = parseInt(itemMatch[1])
+                const unitPrice = parseKazakhNumber(itemMatch[2].trim())
+                const totalPrice = parseKazakhNumber(itemMatch[3].trim())
+
+                if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
+                    result.items.push({
+                        name: currentProductName || 'Позиция',
+                        department: '1',
+                        unitPrice: Math.round(unitPrice),
+                        quantity: quantity,
+                        measureUnit: 'штука',
+                        totalPrice: Math.round(totalPrice)
+                    })
+                    currentProductName = ''
+                }
+            }
+        }
+    }
+
+    if (!result.date) throw new Error('Could not extract date from WOFD receipt')
+    if (!result.fiscalId) throw new Error('Could not extract fiscal ID from WOFD receipt')
+    if (result.totalAmount === 0) throw new Error('Could not extract total amount from WOFD receipt')
+
+    strapi.log.info(`[WOFD] Extracted: ${result.items.length} items, total: ${result.totalAmount}`)
+
+    return result
+}
+
 export const calculateFinalCashback = (items: any[]): number => {
     return items.reduce((total, item) => {
         if (
             item.__component === 'receipt-item.item' &&
             ['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(item.verificationStatus)
         ) {
-            // Multiply cashback amount by quantity
             const quantity = item.props?.quantity || 1
             return total + ((item.cashback || 0) * quantity)
         }
         return total
     }, 0)
+}
+
+const parseKazakhNumber = (numStr: string): number => {
+    const cleaned = numStr.replace(/\s+/g, '').replace(',', '.')
+    return parseFloat(cleaned)
 }
