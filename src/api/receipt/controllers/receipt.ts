@@ -112,7 +112,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       const isWithinTimeLimit = checkTimeLimit(receiptData.date, receiptValidDays)
 
       if (!isWithinTimeLimit) {
-        return handleLateSubmission(context, receiptData, receiptValidDays)
+        await createLateSubmissionReceipt(context, receiptData)
+
+        throw new Error(`Чек превысил срок годности в ${receiptValidDays} дней.`)
       }
 
       await validateItemNames(context, receiptData)
@@ -404,7 +406,10 @@ async function processClaimedItem(itemName: string, props: ItemProps, product: P
   }
 }
 
-async function handleLateSubmission({ ctx, userId }: SubmitContext, receiptData: ReceiptData, receiptValidDays: number) {
+async function createLateSubmissionReceipt(
+  { ctx, userId }: SubmitContext, 
+  receiptData: ReceiptData, 
+) {
   const items: ReceiptItem[] = receiptData.items.map((itemData: any) => {
     const props: ItemProps = {
       unitPrice: itemData.unitPrice,
@@ -445,11 +450,7 @@ async function handleLateSubmission({ ctx, userId }: SubmitContext, receiptData:
     },
   })
 
-  strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId} with status auto_rejected due to time limit`)
-  return ctx.created({
-    message: `Чек успешно отправлен, но отклонен, так как превышен срок подачи (${receiptValidDays} дней).`,
-    receipt,
-  })
+  strapi.log.info(`Created late submission receipt documentId ${receipt.documentId} for user ${userId}`)
 }
 
 async function createReceipt(

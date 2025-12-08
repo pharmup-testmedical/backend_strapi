@@ -188,7 +188,19 @@ const parseKofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
             } else {
                 throw new Error('Missing required parameters: registrationNumber and ticketNumber')
             }
+        } else if (qrLink.includes('consumer.kofd.kz')) {
+            // Handle consumer.kofd.kz URLs
+            const urlObj = new URL(qrLink)
+            const i = urlObj.searchParams.get('i')
+            const f = urlObj.searchParams.get('f')
+
+            if (i && f) {
+                apiUrl = `https://cabinet.kofd.kz/api/tickets?registrationNumber=${f}&ticketNumber=${i}`
+            } else {
+                throw new Error('Missing required parameters in consumer URL')
+            }
         } else if (qrLink.includes('cabinet.kofd.kz/consumer')) {
+            // Handle old format cabinet.kofd.kz/consumer URLs
             const urlObj = new URL(qrLink)
             const i = urlObj.searchParams.get('i')
             const f = urlObj.searchParams.get('f')
@@ -199,6 +211,7 @@ const parseKofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                 throw new Error('Missing required parameters in consumer URL')
             }
         }
+        // If it's already a cabinet API URL, use it as-is
 
         strapi.log.info(`[KOFD] Making request to: ${apiUrl}`)
 
@@ -265,6 +278,18 @@ const parseWofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                 throw new Error('Missing required parameters: registrationNumber and ticketNumber')
             }
         } else if (qrLink.includes('consumer.wofd.kz')) {
+            // Handle consumer.wofd.kz URLs
+            const urlObj = new URL(qrLink)
+            const i = urlObj.searchParams.get('i')
+            const f = urlObj.searchParams.get('f')
+
+            if (i && f) {
+                apiUrl = `https://cabinet.wofd.kz/api/tickets?registrationNumber=${f}&ticketNumber=${i}`
+            } else {
+                throw new Error('Missing required parameters in consumer URL')
+            }
+        } else if (qrLink.includes('cabinet.wofd.kz/consumer')) {
+            // Handle old format cabinet.wofd.kz/consumer URLs
             const urlObj = new URL(qrLink)
             const i = urlObj.searchParams.get('i')
             const f = urlObj.searchParams.get('f')
@@ -275,6 +300,7 @@ const parseWofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                 throw new Error('Missing required parameters in consumer URL')
             }
         }
+        // If it's already a cabinet API URL, use it as-is
 
         strapi.log.info(`[WOFD] Making request to: ${apiUrl}`)
 
@@ -453,6 +479,8 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
     if (!result.date) throw new Error('Could not extract date from KOFD receipt')
     if (!result.fiscalId) throw new Error('Could not extract fiscal ID from KOFD receipt')
     if (result.totalAmount === 0) throw new Error('Could not extract total amount from KOFD receipt')
+    if (result.items.length === 0) throw new Error('Could not extract items from KOFD receipt')
+
 
     strapi.log.info(`[KOFD] Extracted: ${result.items.length} items, total: ${result.totalAmount}`)
 
@@ -473,6 +501,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
     }
 
     let currentProductName = ''
+    let collectingProductName = false
 
     for (let i = 0; i < textLines.length; i++) {
         const text = textLines[i].trim()
@@ -540,16 +569,40 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
             result.paymentMethod = 'CASH'
         }
 
-        // WOFD: Product name is on the line before the price line
+        // WOFD product name detection with multi-line support
         if (!text.includes('(Дана/Штука)') &&
             !text.includes('₸') &&
             !text.includes('ИТОГО') &&
             !text.includes('БАРЛЫҒЫ') &&
-            text.length > 2 &&
-            i + 1 < textLines.length &&
-            textLines[i + 1].trim().includes('(Дана/Штука)')) {
-
-            currentProductName = text
+            !text.includes('Фискалдық') &&
+            !text.includes('Фискальный') &&
+            !text.includes('УАҚЫТЫ') &&
+            !text.includes('ВРЕМЯ') &&
+            !text.includes('Чектің') &&
+            !text.includes('Ауысым') &&
+            !text.includes('КАССИР') &&
+            !text.includes('КЗН') &&
+            !text.includes('КТН') &&
+            !text.includes('Төленген') &&
+            !text.includes('Қайтарым') &&
+            !text.includes('Жеңілдік') &&
+            !text.includes('үстеме') &&
+            !text.includes('ҚҚС') &&
+            text.length > 0) {
+            
+            // Check if next line is a price line
+            if (i + 1 < textLines.length && textLines[i + 1].trim().includes('(Дана/Штука)')) {
+                // This line starts a product name
+                currentProductName = text
+                collectingProductName = true
+            } 
+            // Check if we're currently collecting a product name and this line continues it
+            else if (collectingProductName && 
+                     i + 1 < textLines.length && 
+                     !textLines[i + 1].trim().includes('(Дана/Штука)')) {
+                // Continue the product name
+                currentProductName = currentProductName.replace(/\s+$/, '') + ' ' + text
+            }
         }
 
         if (text.includes('(Дана/Штука)') && text.includes('x') && text.includes('=')) {
@@ -565,15 +618,22 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                 const totalPrice = parseKazakhNumber(itemMatch[3].trim())
 
                 if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
+                    if (!currentProductName) {
+                        // If no product name was extracted, throw an error
+                        throw new Error('Could not extract product name from WOFD receipt')
+                    }
+                    
                     result.items.push({
-                        name: currentProductName || 'Позиция',
+                        name: currentProductName,
                         department: '1',
                         unitPrice: Math.round(unitPrice),
                         quantity: quantity,
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice)
                     })
+                    
                     currentProductName = ''
+                    collectingProductName = false
                 }
             }
         }
@@ -582,6 +642,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
     if (!result.date) throw new Error('Could not extract date from WOFD receipt')
     if (!result.fiscalId) throw new Error('Could not extract fiscal ID from WOFD receipt')
     if (result.totalAmount === 0) throw new Error('Could not extract total amount from WOFD receipt')
+    if (result.items.length === 0) throw new Error('Could not extract items from WOFD receipt')
 
     strapi.log.info(`[WOFD] Extracted: ${result.items.length} items, total: ${result.totalAmount}`)
 
