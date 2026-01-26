@@ -498,7 +498,7 @@ async function createReceipt(
 
   strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId} with status ${receiptVerificationStatus}`)
   return ctx.created({
-    message: 'Чек успешно отправлен и будет обработан.',
+    message: 'Чек успешно отправлен и будет обработан',
     receipt,
   })
 }

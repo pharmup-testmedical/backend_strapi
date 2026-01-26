@@ -412,9 +412,7 @@ export interface ApiCashbackRequestCashbackRequest
     draftAndPublish: false;
   };
   attributes: {
-    amount: Schema.Attribute.Decimal &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<500>;
+    amount: Schema.Attribute.Decimal & Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -425,6 +423,7 @@ export interface ApiCashbackRequestCashbackRequest
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
+    rejectionReason: Schema.Attribute.Text;
     requester: Schema.Attribute.Relation<
       'manyToOne',
       'plugin::users-permissions.user'

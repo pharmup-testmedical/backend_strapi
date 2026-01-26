@@ -30,8 +30,10 @@
     },
     "amount": {
       "type": "decimal",
-      "required": true,
-      "default": 500
+      "required": true
+    },
+    "rejectionReason": {
+      "type": "text"
     }
   }
 }
