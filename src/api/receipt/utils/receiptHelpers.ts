@@ -27,11 +27,11 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
 
     if (!qrLink.startsWith('http')) {
         const params = qrLink.startsWith('?') ? qrLink : `?${qrLink}`
-        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`
+        apiUrl = `https://consumer.oofd.kz/api/consumer-proxy/api/tickets/get-by-url${params}`
     } else if (qrLink.includes('consumer.oofd.kz') && !qrLink.includes('/api/tickets/get-by-url')) {
         const urlObj = new URL(qrLink)
         const params = urlObj.search
-        apiUrl = `https://consumer.oofd.kz/api/tickets/get-by-url${params}`
+        apiUrl = `https://consumer.oofd.kz/api/consumer-proxy/api/tickets/get-by-url${params}`
     }
 
     strapi.log.info(`[OOFD] Making request to: ${apiUrl}`)

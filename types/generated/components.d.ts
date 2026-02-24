@@ -68,7 +68,7 @@ export interface ReceiptItemItemProps extends Struct.ComponentSchema {
   attributes: {
     department: Schema.Attribute.String & Schema.Attribute.Required;
     measureUnit: Schema.Attribute.String & Schema.Attribute.Required;
-    quantity: Schema.Attribute.Integer & Schema.Attribute.Required;
+    quantity: Schema.Attribute.Decimal & Schema.Attribute.Required;
     totalPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
     unitPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
   };

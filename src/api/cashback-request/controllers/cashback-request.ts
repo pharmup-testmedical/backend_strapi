@@ -17,7 +17,7 @@ export default factories.createCoreController(
                 let { amount } = ctx.request.body as { amount: number | string }
                 amount = typeof amount === 'string' ? Number(amount) : amount
                 if (!amount || isNaN(amount)) {
-                    throw new Error('Необходимо указать сумму кэшбэка')
+                    throw new Error('Необходимо указать сумму кешбэка')
                 }
                 strapi.log.info(`Requested cashback amount: ${amount}`)
 
@@ -31,7 +31,7 @@ export default factories.createCoreController(
                         `Amount ${amount} < minWithdrawAmount ${minWithdrawAmount}`
                     )
                     throw new Error(
-                        `Минимальная сумма для вывода кэшбэка — ${minWithdrawAmount}₸`
+                        `Минимальная сумма для вывода кешбэка — ${minWithdrawAmount}₸`
                     )
                 }
 
@@ -76,7 +76,7 @@ export default factories.createCoreController(
                     })
                 return ctx.created({
                     message:
-                        'Запрос на кэшбэк успешно создан и ожидает проверки',
+                        'Запрос на кешбэк успешно создан и ожидает проверки',
                     cashbackRequest: newRequest
                 })
 
@@ -86,7 +86,7 @@ export default factories.createCoreController(
                 )
 
                 return ctx.badRequest(
-                    error.message || 'Непредвиденная ошибка при запросе кэшбэка'
+                    error.message || 'Непредвиденная ошибка при запросе кешбэка'
                 )
             }
         },

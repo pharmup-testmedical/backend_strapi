@@ -250,10 +250,10 @@ function validateItemProps(itemName: string, props: ItemProps): void {
     typeof props.unitPrice !== 'number' ||
     isNaN(props.unitPrice) ||
     typeof props.quantity !== 'number' ||
-    !Number.isInteger(props.quantity) ||
-    !props.measureUnit ||
+    props.quantity <= 0 ||
     typeof props.totalPrice !== 'number' ||
     isNaN(props.totalPrice) ||
+    !props.measureUnit ||
     !props.department
   ) {
     strapi.log.warn(`Invalid props for item ${itemName}: ${JSON.stringify(props)}`)
@@ -317,8 +317,6 @@ async function processReceiptItems(
         department: itemData.department,
       }
 
-      validateItemProps(itemName, props)
-
       const matchedKey = Object.keys(itemMappings).find(
         (key) => key.toLowerCase() === itemName.toLowerCase()
       )
@@ -332,6 +330,8 @@ async function processReceiptItems(
           props,
         }
       }
+
+      validateItemProps(itemName, props)
 
       const product = products.find((p) => p.documentId === productId)
       if (!product) {
