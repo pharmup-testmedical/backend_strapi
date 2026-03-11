@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_tasks_otskanirujte_pervye_cheki",
+  "info": {
+    "displayName": "Отсканируйте первые чеки",
+    "icon": "layer"
+  },
+  "options": {},
+  "attributes": {
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "numReceiptsRequired": {
+      "type": "integer",
+      "required": true,
+      "default": 3,
+      "min": 1
+    },
+    "cashback": {
+      "type": "decimal",
+      "required": true,
+      "default": 0,
+      "min": 0
+    }
+  }
+}

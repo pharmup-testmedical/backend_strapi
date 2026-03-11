@@ -470,6 +470,33 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCityCity extends Struct.CollectionTypeSchema {
+  collectionName: 'cities';
+  info: {
+    displayName: '\u0413\u043E\u0440\u043E\u0434';
+    pluralName: 'cities';
+    singularName: 'city';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::city.city'> &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
   collectionName: 'main_pages';
   info: {
@@ -529,7 +556,6 @@ export interface ApiProductAliasProductAlias
   attributes: {
     alternativeName: Schema.Attribute.String &
       Schema.Attribute.Required &
-      Schema.Attribute.Unique &
       Schema.Attribute.SetPluginOptions<{
         index: true;
       }>;
@@ -745,6 +771,8 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
     enableSearch: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<true>;
+    leaveRating: Schema.Attribute.Component<'tasks.postavit-oczenku', false> &
+      Schema.Attribute.Required;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -752,9 +780,19 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
+    scanFirstReceipts: Schema.Attribute.Component<
+      'tasks.otskanirujte-pervye-cheki',
+      false
+    > &
+      Schema.Attribute.Required;
     searchPlaceholder: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'\u041F\u043E\u0438\u0441\u043A \u0437\u0430\u0434\u0430\u043D\u0438\u044F'>;
+    sendInvitations: Schema.Attribute.Component<
+      'tasks.priglashenie-kolleg',
+      false
+    > &
+      Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1258,7 +1296,7 @@ export interface PluginUsersPermissionsUser
       'oneToMany',
       'api::cashback-request.cashback-request'
     >;
-    city: Schema.Attribute.String;
+    city: Schema.Attribute.Relation<'oneToOne', 'api::city.city'>;
     confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
@@ -1276,6 +1314,7 @@ export interface PluginUsersPermissionsUser
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    otherCity: Schema.Attribute.String;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{
@@ -1315,6 +1354,7 @@ declare module '@strapi/strapi' {
       'api::brand.brand': ApiBrandBrand;
       'api::cashback-request.cashback-request': ApiCashbackRequestCashbackRequest;
       'api::category.category': ApiCategoryCategory;
+      'api::city.city': ApiCityCity;
       'api::main-page.main-page': ApiMainPageMainPage;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;

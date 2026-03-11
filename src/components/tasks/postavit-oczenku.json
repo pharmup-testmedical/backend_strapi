@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_tasks_postavit_oczenku",
+  "info": {
+    "displayName": "Поставить оценку",
+    "icon": "star",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    }
+  }
+}

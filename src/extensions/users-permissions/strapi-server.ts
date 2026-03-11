@@ -100,6 +100,76 @@ export default (plugin) => {
                 return ctx.redirect(errorUrl);
             }
         },
+
+        async updateMyCity(ctx: Context) {
+            const user = ctx.state.user;
+            if (!user) {
+                return ctx.unauthorized();
+            }
+
+            const { city } = ctx.request.body;
+
+            if (city === undefined || city === null) {
+                return ctx.badRequest('Требуется указать город.');
+            }
+
+            let cityId: string | number | null = null;
+            let otherCity: string | null = null;
+
+            // Case 1: numeric city id
+            if (typeof city === 'number') {
+                const existingCity = await strapi.entityService.findOne(
+                    'api::city.city',
+                    city
+                );
+
+                if (!existingCity) {
+                    return ctx.badRequest('City not found');
+                }
+
+                cityId = existingCity.id;
+            }
+
+            // Case 2: string → normalize → lookup
+            if (typeof city === 'string') {
+                const normalized = city.trim().toLowerCase();
+
+                if (!normalized) {
+                    return ctx.badRequest('City cannot be empty');
+                }
+
+                const matchedCities = await strapi.entityService.findMany(
+                    'api::city.city',
+                    {
+                        filters: {
+                            name: {
+                                $eqi: normalized,
+                            },
+                        },
+                        limit: 1,
+                    }
+                );
+
+                if (matchedCities.length > 0) {
+                    cityId = matchedCities[0].id;
+                } else {
+                    otherCity = city;
+                }
+            }
+
+            await strapi.entityService.update(
+                'plugin::users-permissions.user',
+                user.id,
+                {
+                    data: {
+                        city: cityId,
+                        otherCity,
+                    },
+                }
+            );
+
+            ctx.body = { success: true };
+        },
     };
 
     // Add the custom routes to users-permissions content-api routes
@@ -123,6 +193,17 @@ export default (plugin) => {
         handler: 'custom.emailConfirmationRedirect',
         config: {
             auth: false,
+        },
+    });
+
+    plugin.routes['content-api'].routes.push({
+        method: 'PUT',
+        path: '/me/city',
+        handler: 'custom.updateMyCity',
+        config: {
+            auth: {
+                scope: ['plugin::users-permissions.custom.updateMyCity'],
+            },
         },
     });
 

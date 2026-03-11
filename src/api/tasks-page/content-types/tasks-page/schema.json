@@ -20,6 +20,27 @@
       "type": "string",
       "required": true,
       "default": "Поиск задания"
+    },
+    "sendInvitations": {
+      "displayName": "Приглашение коллег",
+      "type": "component",
+      "repeatable": false,
+      "component": "tasks.priglashenie-kolleg",
+      "required": true
+    },
+    "leaveRating": {
+      "displayName": "Поставить оценку",
+      "type": "component",
+      "repeatable": false,
+      "component": "tasks.postavit-oczenku",
+      "required": true
+    },
+    "scanFirstReceipts": {
+      "displayName": "Отсканируйте первые чеки",
+      "type": "component",
+      "repeatable": false,
+      "component": "tasks.otskanirujte-pervye-cheki",
+      "required": true
     }
   }
 }

@@ -117,6 +117,74 @@ export interface SettingsPromo extends Struct.ComponentSchema {
   };
 }
 
+export interface TasksOtskanirujtePervyeCheki extends Struct.ComponentSchema {
+  collectionName: 'components_tasks_otskanirujte_pervye_cheki';
+  info: {
+    displayName: '\u041E\u0442\u0441\u043A\u0430\u043D\u0438\u0440\u0443\u0439\u0442\u0435 \u043F\u0435\u0440\u0432\u044B\u0435 \u0447\u0435\u043A\u0438';
+    icon: 'layer';
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    cashback: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    numReceiptsRequired: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<3>;
+  };
+}
+
+export interface TasksPostavitOczenku extends Struct.ComponentSchema {
+  collectionName: 'components_tasks_postavit_oczenku';
+  info: {
+    description: '';
+    displayName: '\u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043E\u0446\u0435\u043D\u043A\u0443';
+    icon: 'star';
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+  };
+}
+
+export interface TasksPriglashenieKolleg extends Struct.ComponentSchema {
+  collectionName: 'components_tasks_priglashenie_kolleg';
+  info: {
+    description: '';
+    displayName: '\u041F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435 \u043A\u043E\u043B\u043B\u0435\u0433';
+    icon: 'user';
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    cashback: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+  };
+}
+
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
@@ -127,6 +195,9 @@ declare module '@strapi/strapi' {
       'receipt-item.product-claim': ReceiptItemProductClaim;
       'settings.banking': SettingsBanking;
       'settings.promo': SettingsPromo;
+      'tasks.otskanirujte-pervye-cheki': TasksOtskanirujtePervyeCheki;
+      'tasks.postavit-oczenku': TasksPostavitOczenku;
+      'tasks.priglashenie-kolleg': TasksPriglashenieKolleg;
     }
   }
 }

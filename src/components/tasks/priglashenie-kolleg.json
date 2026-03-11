@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_tasks_priglashenie_kolleg",
+  "info": {
+    "displayName": "Приглашение коллег",
+    "icon": "user",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "cashback": {
+      "type": "decimal",
+      "required": true,
+      "default": 0,
+      "min": 0
+    }
+  }
+}

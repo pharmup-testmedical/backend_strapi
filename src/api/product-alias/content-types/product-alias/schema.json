@@ -19,7 +19,6 @@
     "alternativeName": {
       "type": "string",
       "required": true,
-      "unique": true,
       "pluginOptions": {
         "index": true
       }
