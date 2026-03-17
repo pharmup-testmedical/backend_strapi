@@ -109,6 +109,12 @@
       "relation": "oneToMany",
       "target": "api::completed-test.completed-test",
       "mappedBy": "user"
+    },
+    "referralCode": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "private": true
     }
   }
 }
