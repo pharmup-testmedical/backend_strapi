@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_test_variant_otveta",
+  "info": {
+    "displayName": "Вариант ответа",
+    "icon": "quote",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "text",
+      "required": true
+    }
+  }
+}

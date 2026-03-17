@@ -136,12 +136,28 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         return ctx.unauthorized('Вы должны быть авторизованы для просмотра своих чеков')
       }
 
+      // Extract date filters from query parameters
+      const { startDate, endDate } = ctx.query
+      const filters: any = { user: userId }
+
+      // Add date range filter if provided
+      if (startDate || endDate) {
+        filters.date = {}
+        if (startDate) {
+          filters.date.$gte = startDate
+        }
+        if (endDate) {
+          filters.date.$lte = endDate
+        }
+      }
+
       const receipts = await strapi.documents('api::receipt.receipt').findMany({
-        filters: { user: userId },
+        filters: filters,
         populate: ctx.query.populate || { items: true },
+        sort: { date: 'desc' }, // Add sorting by date
       })
 
-      strapi.log.info(`Fetched ${receipts.length} receipts for user ${userId}`)
+      strapi.log.info(`Fetched ${receipts.length} receipts for user ${userId} with date filter: ${startDate || 'none'} to ${endDate || 'none'}`)
       return ctx.send({
         data: receipts,
         meta: { total: receipts.length },
@@ -407,8 +423,8 @@ async function processClaimedItem(itemName: string, props: ItemProps, product: P
 }
 
 async function createLateSubmissionReceipt(
-  { ctx, userId }: SubmitContext, 
-  receiptData: ReceiptData, 
+  { ctx, userId }: SubmitContext,
+  receiptData: ReceiptData,
 ) {
   const items: ReceiptItem[] = receiptData.items.map((itemData: any) => {
     const props: ItemProps = {

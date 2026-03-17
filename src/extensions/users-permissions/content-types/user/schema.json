@@ -97,6 +97,18 @@
     },
     "otherCity": {
       "type": "string"
+    },
+    "completedTasks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::completed-task.completed-task",
+      "mappedBy": "user"
+    },
+    "completedTests": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::completed-test.completed-test",
+      "mappedBy": "user"
     }
   }
 }

@@ -1,5 +1,46 @@
 import type { Schema, Struct } from '@strapi/strapi';
 
+export interface CompletedTasksOtskanirujtePervyeCheki
+  extends Struct.ComponentSchema {
+  collectionName: 'components_completed_tasks_otskanirujte_pervye_cheki';
+  info: {
+    displayName: '\u041E\u0442\u0441\u043A\u0430\u043D\u0438\u0440\u0443\u0439\u0442\u0435 \u043F\u0435\u0440\u0432\u044B\u0435 \u0447\u0435\u043A\u0438';
+    icon: 'layer';
+  };
+  attributes: {
+    firstReceipts: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::receipt.receipt'
+    >;
+  };
+}
+
+export interface CompletedTasksPostavitOczenku extends Struct.ComponentSchema {
+  collectionName: 'components_completed_tasks_postavit_oczenku';
+  info: {
+    displayName: '\u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043E\u0446\u0435\u043D\u043A\u0443';
+    icon: 'star';
+  };
+  attributes: {
+    verified: Schema.Attribute.Boolean;
+  };
+}
+
+export interface CompletedTasksPriglashenieKolleg
+  extends Struct.ComponentSchema {
+  collectionName: 'components_completed_tasks_priglashenie_kolleg';
+  info: {
+    displayName: '\u041F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435 \u043A\u043E\u043B\u043B\u0435\u0433';
+    icon: 'user';
+  };
+  attributes: {
+    invitedUser: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface MainPagePromoBanner extends Struct.ComponentSchema {
   collectionName: 'components_main_page_promo_banners';
   info: {
@@ -159,6 +200,15 @@ export interface TasksPostavitOczenku extends Struct.ComponentSchema {
     active: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<true>;
+    ratingCooldownDays: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<14>;
   };
 }
 
@@ -185,9 +235,45 @@ export interface TasksPriglashenieKolleg extends Struct.ComponentSchema {
   };
 }
 
+export interface TestTestVopros extends Struct.ComponentSchema {
+  collectionName: 'components_test_test_vopros';
+  info: {
+    description: '';
+    displayName: '\u0422\u0435\u0441\u0442 \u0432\u043E\u043F\u0440\u043E\u0441';
+    icon: 'question';
+  };
+  attributes: {
+    correctAnswer: Schema.Attribute.String & Schema.Attribute.Required;
+    multipleChoice: Schema.Attribute.Component<'test.variant-otveta', true> &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 2;
+        },
+        number
+      >;
+    question: Schema.Attribute.Text & Schema.Attribute.Required;
+  };
+}
+
+export interface TestVariantOtveta extends Struct.ComponentSchema {
+  collectionName: 'components_test_variant_otveta';
+  info: {
+    description: '';
+    displayName: '\u0412\u0430\u0440\u0438\u0430\u043D\u0442 \u043E\u0442\u0432\u0435\u0442\u0430';
+    icon: 'quote';
+  };
+  attributes: {
+    title: Schema.Attribute.Text & Schema.Attribute.Required;
+  };
+}
+
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
+      'completed-tasks.otskanirujte-pervye-cheki': CompletedTasksOtskanirujtePervyeCheki;
+      'completed-tasks.postavit-oczenku': CompletedTasksPostavitOczenku;
+      'completed-tasks.priglashenie-kolleg': CompletedTasksPriglashenieKolleg;
       'main-page.promo-banner': MainPagePromoBanner;
       'public.agreements': PublicAgreements;
       'receipt-item.item': ReceiptItemItem;
@@ -198,6 +284,8 @@ declare module '@strapi/strapi' {
       'tasks.otskanirujte-pervye-cheki': TasksOtskanirujtePervyeCheki;
       'tasks.postavit-oczenku': TasksPostavitOczenku;
       'tasks.priglashenie-kolleg': TasksPriglashenieKolleg;
+      'test.test-vopros': TestTestVopros;
+      'test.variant-otveta': TestVariantOtveta;
     }
   }
 }

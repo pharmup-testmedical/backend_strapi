@@ -1,0 +1,31 @@
+{
+  "kind": "collectionType",
+  "collectionName": "completed_tests",
+  "info": {
+    "singularName": "completed-test",
+    "pluralName": "completed-tests",
+    "displayName": "Выполненный тест",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "test": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::test.test"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "completedTests"
+    },
+    "cashback": {
+      "type": "decimal",
+      "required": true,
+      "min": 0
+    }
+  }
+}

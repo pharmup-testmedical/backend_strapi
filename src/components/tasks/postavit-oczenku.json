@@ -11,6 +11,12 @@
       "type": "boolean",
       "default": true,
       "required": true
+    },
+    "ratingCooldownDays": {
+      "type": "integer",
+      "required": true,
+      "default": 14,
+      "min": 0
     }
   }
 }

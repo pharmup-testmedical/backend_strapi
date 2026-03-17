@@ -24,6 +24,14 @@ interface CashbackRequest {
     amount: number
 }
 
+interface CompletedTest {
+    id: number
+    documentId: string
+    user?: { documentId: string }
+    test?: any
+    cashback: number
+}
+
 // Define your status types first
 type ReceiptVerificationStatus =
     'manual_review' |
@@ -84,10 +92,10 @@ interface CashbackRequestFilter {
 export async function calculateUserBalance(userDocumentId: string): Promise<number> {
     strapi.log.info(`[Balance] Starting balance calculation for user ${userDocumentId}`);
 
-    // Get all receipts that might contribute to balance
+    // 1. Get all receipts that might contribute to balance
     const receipts = await strapi.documents('api::receipt.receipt').findMany({
         filters: {
-            user: { documentId: { $eq: userDocumentId } }, // Fixed: Removed nested filters
+            user: { documentId: { $eq: userDocumentId } },
             verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
         },
         populate: {
@@ -102,7 +110,7 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
         }
     }) as Receipt[];
 
-    // Calculate cashback from receipts (same as before)
+    // 2. Calculate cashback from receipts
     const totalVerifiedCashback = receipts.reduce((userSum, receipt) => {
         // For fully verified receipts, we can use the finalCashback if available
         if (receipt.verificationStatus === 'auto_verified' || receipt.verificationStatus === 'manually_verified') {
@@ -127,10 +135,10 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
         return userSum + receiptSum
     }, 0)
 
-    // Get approved cashback requests
+    // 3. Get approved cashback requests
     const approvedCashbackRequests = await strapi.documents('api::cashback-request.cashback-request').findMany({
         filters: {
-            requester: { documentId: { $eq: userDocumentId } }, // Fixed: Removed nested filters
+            requester: { documentId: { $eq: userDocumentId } },
             verificationStatus: { $in: APPROVED_REQUEST_STATUSES }
         }
     }) as CashbackRequest[];
@@ -140,9 +148,29 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
         return sum + (request.amount || 0)
     }, 0)
 
-    const balance = totalVerifiedCashback - totalApprovedCashback
-    strapi.log.info(`[Balance] Final balance for user ${userDocumentId}: ${balance}`)
+    // 4. Task bonuses
+    const completedTasks = await strapi.documents('api::completed-task.completed-task').findMany({
+        filters: {
+            user: { documentId: { $eq: userDocumentId } }
+        }
+    });
+    const totalTaskCashback = completedTasks.reduce((sum, task) => {
+        return sum + (task.cashback || 0);
+    }, 0);
 
+    // 5. Test bonuses (NEW)
+    const completedTests = await strapi.documents('api::completed-test.completed-test').findMany({
+        filters: {
+            user: { documentId: { $eq: userDocumentId } }
+        }
+    }) as CompletedTest[];
+
+    const totalTestCashback = completedTests.reduce((sum, test) => {
+        return sum + (test.cashback || 0);
+    }, 0);
+
+    const balance = totalVerifiedCashback + totalTaskCashback + totalTestCashback - totalApprovedCashback
+    strapi.log.info(`[Balance] Final balance for user ${userDocumentId}: ${balance} (receipts: ${totalVerifiedCashback}, tasks: ${totalTaskCashback}, tests: ${totalTestCashback}, requests: ${totalApprovedCashback})`)
     return balance
 }
 
@@ -157,4 +185,65 @@ export async function updateUserBalance(userDocumentId: string): Promise<number>
     });
 
     return newBalance;
+}
+
+export async function checkAndCompleteTasks(userDocumentId: string): Promise<void> {
+    // Check scanFirstReceipts task
+    const scanTaskCompleted = await strapi.documents('api::completed-task.completed-task').findFirst({
+        filters: {
+            user: { documentId: { $eq: userDocumentId } },
+            task: 'scanFirstReceipts'
+        }
+    });
+
+    if (!scanTaskCompleted) {
+        const tasksPage = await strapi.documents('api::tasks-page.tasks-page').findFirst({
+            populate: ['scanFirstReceipts']
+        });
+
+        const scanTask = tasksPage?.scanFirstReceipts;
+        if (scanTask?.active) {
+            const numRequired = scanTask.numReceiptsRequired;
+            const taskCashback = scanTask.cashback;
+
+            // Fast count
+            const verifiedCount = await strapi.documents('api::receipt.receipt').count({
+                filters: {
+                    user: { documentId: { $eq: userDocumentId } },
+                    verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
+                }
+            });
+
+            if (verifiedCount >= numRequired) {
+                // Get the FIRST N earliest receipts (exactly what the task name implies)
+                const firstNReceipts = await strapi.documents('api::receipt.receipt').findMany({
+                    filters: {
+                        user: { documentId: { $eq: userDocumentId } },
+                        verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
+                    },
+                    sort: { date: 'asc' },   // earliest receipt date first
+                    limit: numRequired,
+                    fields: ['id']
+                });
+
+                // Create completion record
+                await strapi.documents('api::completed-task.completed-task').create({
+                    data: {
+                        user: userDocumentId,
+                        task: 'scanFirstReceipts',
+                        cashback: taskCashback,
+                        details: [{
+                            __component: 'completed-tasks.otskanirujte-pervye-cheki',
+                            firstReceipts: firstNReceipts.map(r => ({ documentId: r.documentId }))
+                        }]
+                    }
+                });
+
+                strapi.log.info(`[Task] scanFirstReceipts completed for user ${userDocumentId} → +${taskCashback} cashback`);
+
+                // Recalculate balance so the new task cashback appears immediately
+                await updateUserBalance(userDocumentId);
+            }
+        }
+    }
 }

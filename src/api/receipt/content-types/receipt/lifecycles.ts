@@ -1,4 +1,4 @@
-import { updateUserBalance } from '../../../../utils/calculate-user-balance';
+import { updateUserBalance, checkAndCompleteTasks } from '../../../../utils/calculate-user-balance';
 
 export default {
     async afterCreate(event) {
@@ -8,8 +8,9 @@ export default {
             populate: ['user']
         });
 
-        if (fullReceipt.user?.documentId) {
+        if (fullReceipt?.user?.documentId) {
             await updateUserBalance(fullReceipt.user.documentId);
+            await checkAndCompleteTasks(fullReceipt.user.documentId);
         }
     },
 
@@ -20,8 +21,9 @@ export default {
             populate: ['user']
         });
 
-        if (fullReceipt.user?.documentId) {
+        if (fullReceipt?.user?.documentId) {
             await updateUserBalance(fullReceipt.user.documentId);
+            await checkAndCompleteTasks(fullReceipt.user.documentId);   // ← NEW (important for manual verification!)
         }
     }
 };

@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_test_test_vopros",
+  "info": {
+    "displayName": "Тест вопрос",
+    "icon": "question",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "question": {
+      "type": "text",
+      "required": true
+    },
+    "multipleChoice": {
+      "displayName": "Вариант ответа",
+      "type": "component",
+      "repeatable": true,
+      "component": "test.variant-otveta",
+      "required": true,
+      "min": 2
+    },
+    "correctAnswer": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

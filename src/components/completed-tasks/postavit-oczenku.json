@@ -1,0 +1,13 @@
+{
+  "collectionName": "components_completed_tasks_postavit_oczenku",
+  "info": {
+    "displayName": "Поставить оценку",
+    "icon": "star"
+  },
+  "options": {},
+  "attributes": {
+    "verified": {
+      "type": "boolean"
+    }
+  }
+}

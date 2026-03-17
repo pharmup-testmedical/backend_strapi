@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tests",
+  "info": {
+    "singularName": "test",
+    "pluralName": "tests",
+    "displayName": "Тест",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "questions": {
+      "displayName": "Тест вопрос",
+      "type": "component",
+      "repeatable": true,
+      "component": "test.test-vopros",
+      "required": true,
+      "min": 1
+    },
+    "videoURL": {
+      "type": "string",
+      "required": true
+    },
+    "cashback": {
+      "type": "decimal",
+      "required": true,
+      "min": 0
+    }
+  }
+}

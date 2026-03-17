@@ -1,4 +1,5 @@
 import type { Core } from '@strapi/strapi';
+import { migrateScanFirstReceiptsTask } from './utils/migrate-scan-first-receipts';
 // import {
 //   registerProductAliasMiddleware,
 //   registerAliasVerifierMiddleware
@@ -14,7 +15,7 @@ export default {
   register({ strapi }: { strapi: Core.Strapi }) {
     // Register Alias Verifier middleware first
     // registerAliasVerifierMiddleware({ strapi });
-    
+
     // Register existing product alias middleware second
     // registerProductAliasMiddleware({ strapi });
   },

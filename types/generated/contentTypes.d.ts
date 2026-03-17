@@ -497,6 +497,108 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCompletedTaskCompletedTask
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'completed_tasks';
+  info: {
+    description: '';
+    displayName: '\u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043D\u043E\u0435 \u0437\u0430\u0434\u0430\u043D\u0438\u0435';
+    pluralName: 'completed-tasks';
+    singularName: 'completed-task';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    cashback: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    details: Schema.Attribute.DynamicZone<
+      [
+        'completed-tasks.priglashenie-kolleg',
+        'completed-tasks.postavit-oczenku',
+        'completed-tasks.otskanirujte-pervye-cheki',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 1;
+          min: 1;
+        },
+        number
+      >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-task.completed-task'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    task: Schema.Attribute.Enumeration<
+      ['sendInvitations', 'leaveRating', 'scanFirstReceipts']
+    > &
+      Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
+export interface ApiCompletedTestCompletedTest
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'completed_tests';
+  info: {
+    description: '';
+    displayName: '\u0412\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043D\u044B\u0439 \u0442\u0435\u0441\u0442';
+    pluralName: 'completed-tests';
+    singularName: 'completed-test';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    cashback: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-test.completed-test'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    test: Schema.Attribute.Relation<'oneToOne', 'api::test.test'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
   collectionName: 'main_pages';
   info: {
@@ -768,6 +870,7 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    displayedTests: Schema.Attribute.Relation<'oneToMany', 'api::test.test'>;
     enableSearch: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<true>;
@@ -796,6 +899,48 @@ export interface ApiTasksPageTasksPage extends Struct.SingleTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+  };
+}
+
+export interface ApiTestTest extends Struct.CollectionTypeSchema {
+  collectionName: 'tests';
+  info: {
+    description: '';
+    displayName: '\u0422\u0435\u0441\u0442';
+    pluralName: 'tests';
+    singularName: 'test';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    cashback: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::test.test'> &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    questions: Schema.Attribute.Component<'test.test-vopros', true> &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    videoURL: Schema.Attribute.String & Schema.Attribute.Required;
   };
 }
 
@@ -1297,6 +1442,14 @@ export interface PluginUsersPermissionsUser
       'api::cashback-request.cashback-request'
     >;
     city: Schema.Attribute.Relation<'oneToOne', 'api::city.city'>;
+    completedTasks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-task.completed-task'
+    >;
+    completedTests: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-test.completed-test'
+    >;
     confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
@@ -1355,6 +1508,8 @@ declare module '@strapi/strapi' {
       'api::cashback-request.cashback-request': ApiCashbackRequestCashbackRequest;
       'api::category.category': ApiCategoryCategory;
       'api::city.city': ApiCityCity;
+      'api::completed-task.completed-task': ApiCompletedTaskCompletedTask;
+      'api::completed-test.completed-test': ApiCompletedTestCompletedTest;
       'api::main-page.main-page': ApiMainPageMainPage;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;
@@ -1362,6 +1517,7 @@ declare module '@strapi/strapi' {
       'api::public-information.public-information': ApiPublicInformationPublicInformation;
       'api::receipt.receipt': ApiReceiptReceipt;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
+      'api::test.test': ApiTestTest;
       'api::website-setup.website-setup': ApiWebsiteSetupWebsiteSetup;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

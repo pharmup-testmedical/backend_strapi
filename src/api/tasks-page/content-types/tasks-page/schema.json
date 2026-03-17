@@ -41,6 +41,11 @@
       "repeatable": false,
       "component": "tasks.otskanirujte-pervye-cheki",
       "required": true
+    },
+    "displayedTests": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::test.test"
     }
   }
 }

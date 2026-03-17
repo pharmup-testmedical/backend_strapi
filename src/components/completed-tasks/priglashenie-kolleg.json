@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_completed_tasks_priglashenie_kolleg",
+  "info": {
+    "displayName": "Приглашение коллег",
+    "icon": "user"
+  },
+  "options": {},
+  "attributes": {
+    "invitedUser": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}
