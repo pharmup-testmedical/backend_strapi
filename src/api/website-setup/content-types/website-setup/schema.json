@@ -24,6 +24,10 @@
       "repeatable": false,
       "component": "settings.banking",
       "required": true
+    },
+    "adminNotificationEmail": {
+      "type": "email",
+      "private": true
     }
   }
 }

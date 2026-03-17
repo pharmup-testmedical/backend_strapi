@@ -956,6 +956,7 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    adminNotificationEmail: Schema.Attribute.Email & Schema.Attribute.Private;
     banking: Schema.Attribute.Component<'settings.banking', false> &
       Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
@@ -1476,6 +1477,10 @@ export interface PluginUsersPermissionsUser
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
+    referralCode: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Private &
+      Schema.Attribute.Unique;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
     role: Schema.Attribute.Relation<
       'manyToOne',
