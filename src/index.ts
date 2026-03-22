@@ -1,5 +1,6 @@
 import type { Core } from '@strapi/strapi';
 import { migrateScanFirstReceiptsTask } from './utils/migrate-scan-first-receipts';
+import { generateUniqueReferralCode } from './utils/generate-referral-code';
 // import {
 //   registerProductAliasMiddleware,
 //   registerAliasVerifierMiddleware
@@ -18,6 +19,91 @@ export default {
 
     // Register existing product alias middleware second
     // registerProductAliasMiddleware({ strapi });
+
+    strapi.log.info('Registering user lifecycles...');
+
+    // Get the user model
+    const userModel = strapi.getModel('plugin::users-permissions.user');
+
+    if (!userModel) {
+      strapi.log.error('User model not found!');
+      return;
+    }
+
+    strapi.log.info('User model found, registering lifecycles...');
+
+    // Register beforeCreate lifecycle
+    strapi.db.lifecycles.subscribe({
+      models: ['plugin::users-permissions.user'],
+
+      async beforeCreate(event) {
+        const { data } = event.params;
+
+        strapi.log.debug('[beforeCreate] Processing user creation');
+
+        // Store inviterCode if present (will be processed in afterCreate)
+        if (data.inviterCode) {
+          strapi.log.debug(`Inviter code provided: ${data.inviterCode}`);
+          // Move to temporary field that won't be saved to DB
+          data._tempInviterCode = data.inviterCode;
+          // Delete original so it doesn't try to save to database
+          delete data.inviterCode;
+        }
+      },
+
+      async afterCreate(event) {
+        const { result, params } = event;
+
+        strapi.log.debug(`[afterCreate] User ${result.id} created, processing referral data...`);
+
+        try {
+          // Generate referral code for the new user
+          const userReferralCode = await generateUniqueReferralCode(result.email, result.id);
+          const updateData: any = { referralCode: userReferralCode };
+
+          // Check if this user was referred by someone
+          if (params.data._tempInviterCode) {
+            const inviterCode = params.data._tempInviterCode;
+            strapi.log.debug(`Looking for inviter with code: ${inviterCode}`);
+
+            // Find the inviter by their referral code
+            const inviter = await strapi.db.query('plugin::users-permissions.user').findOne({
+              where: { referralCode: inviterCode }
+            });
+
+            if (inviter) {
+              updateData.referredBy = inviter.id;
+              strapi.log.info(`User ${result.id} was referred by user ${inviter.id} (code: ${inviterCode})`);
+            } else {
+              strapi.log.warn(`Invalid inviter code used during registration: ${inviterCode}`);
+            }
+          }
+
+          // Update the user with referral code and inviter relation
+          await strapi.db.query('plugin::users-permissions.user').update({
+            where: { id: result.id },
+            data: updateData
+          });
+
+          strapi.log.info(`Referral code ${userReferralCode} set for user ${result.id}`);
+
+        } catch (error) {
+          strapi.log.error(`Failed to set referral data for user ${result.id}:`, error);
+
+          // Fallback - ensure user at least has a referral code
+          const fallbackCode = `USER${result.id}${Date.now().toString().slice(-4)}`.toUpperCase();
+
+          await strapi.db.query('plugin::users-permissions.user').update({
+            where: { id: result.id },
+            data: { referralCode: fallbackCode }
+          });
+
+          strapi.log.warn(`Used fallback code ${fallbackCode} for user ${result.id}`);
+        }
+      }
+    });
+
+    strapi.log.info('User lifecycles registered successfully');
   },
 
   /**

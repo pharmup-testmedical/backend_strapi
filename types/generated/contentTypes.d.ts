@@ -524,7 +524,6 @@ export interface ApiCompletedTaskCompletedTask
     details: Schema.Attribute.DynamicZone<
       [
         'completed-tasks.priglashenie-kolleg',
-        'completed-tasks.postavit-oczenku',
         'completed-tasks.otskanirujte-pervye-cheki',
       ]
     > &
@@ -1479,8 +1478,15 @@ export interface PluginUsersPermissionsUser
     receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
     referralCode: Schema.Attribute.String &
       Schema.Attribute.Required &
-      Schema.Attribute.Private &
       Schema.Attribute.Unique;
+    referrals: Schema.Attribute.Relation<
+      'oneToMany',
+      'plugin::users-permissions.user'
+    >;
+    referredBy: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
     role: Schema.Attribute.Relation<
       'manyToOne',

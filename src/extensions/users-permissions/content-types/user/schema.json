@@ -113,8 +113,19 @@
     "referralCode": {
       "type": "string",
       "required": true,
-      "unique": true,
-      "private": true
+      "unique": true
+    },
+    "referredBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "referrals"
+    },
+    "referrals": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user",
+      "mappedBy": "referredBy"
     }
   }
 }

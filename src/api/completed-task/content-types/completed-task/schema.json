@@ -29,7 +29,6 @@
       "type": "dynamiczone",
       "components": [
         "completed-tasks.priglashenie-kolleg",
-        "completed-tasks.postavit-oczenku",
         "completed-tasks.otskanirujte-pervye-cheki"
       ],
       "required": true,
