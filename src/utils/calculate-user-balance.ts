@@ -187,63 +187,63 @@ export async function updateUserBalance(userDocumentId: string): Promise<number>
     return newBalance;
 }
 
-export async function checkAndCompleteTasks(userDocumentId: string): Promise<void> {
-    // Check scanFirstReceipts task
-    const scanTaskCompleted = await strapi.documents('api::completed-task.completed-task').findFirst({
-        filters: {
-            user: { documentId: { $eq: userDocumentId } },
-            task: 'scanFirstReceipts'
-        }
-    });
+// export async function checkAndCompleteTasks(userDocumentId: string): Promise<void> {
+//     // Check scanFirstReceipts task
+//     const scanTaskCompleted = await strapi.documents('api::completed-task.completed-task').findFirst({
+//         filters: {
+//             user: { documentId: { $eq: userDocumentId } },
+//             task: 'scanFirstReceipts'
+//         }
+//     });
 
-    if (!scanTaskCompleted) {
-        const tasksPage = await strapi.documents('api::tasks-page.tasks-page').findFirst({
-            populate: ['scanFirstReceipts']
-        });
+//     if (!scanTaskCompleted) {
+//         const tasksPage = await strapi.documents('api::tasks-page.tasks-page').findFirst({
+//             populate: ['scanFirstReceipts']
+//         });
 
-        const scanTask = tasksPage?.scanFirstReceipts;
-        if (scanTask?.active) {
-            const numRequired = scanTask.numReceiptsRequired;
-            const taskCashback = scanTask.cashback;
+//         const scanTask = tasksPage?.scanFirstReceipts;
+//         if (scanTask?.active) {
+//             const numRequired = scanTask.numReceiptsRequired;
+//             const taskCashback = scanTask.cashback;
 
-            // Fast count
-            const verifiedCount = await strapi.documents('api::receipt.receipt').count({
-                filters: {
-                    user: { documentId: { $eq: userDocumentId } },
-                    verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
-                }
-            });
+//             // Fast count
+//             const verifiedCount = await strapi.documents('api::receipt.receipt').count({
+//                 filters: {
+//                     user: { documentId: { $eq: userDocumentId } },
+//                     verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
+//                 }
+//             });
 
-            if (verifiedCount >= numRequired) {
-                // Get the FIRST N earliest receipts (exactly what the task name implies)
-                const firstNReceipts = await strapi.documents('api::receipt.receipt').findMany({
-                    filters: {
-                        user: { documentId: { $eq: userDocumentId } },
-                        verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
-                    },
-                    sort: { date: 'asc' },   // earliest receipt date first
-                    limit: numRequired,
-                    fields: ['id']
-                });
+//             if (verifiedCount >= numRequired) {
+//                 // Get the FIRST N earliest receipts (exactly what the task name implies)
+//                 const firstNReceipts = await strapi.documents('api::receipt.receipt').findMany({
+//                     filters: {
+//                         user: { documentId: { $eq: userDocumentId } },
+//                         verificationStatus: { $in: VERIFIED_RECEIPT_STATUSES }
+//                     },
+//                     sort: { date: 'asc' },   // earliest receipt date first
+//                     limit: numRequired,
+//                     fields: ['id']
+//                 });
 
-                // Create completion record
-                await strapi.documents('api::completed-task.completed-task').create({
-                    data: {
-                        user: userDocumentId,
-                        task: 'scanFirstReceipts',
-                        cashback: taskCashback,
-                        details: [{
-                            __component: 'completed-tasks.otskanirujte-pervye-cheki',
-                            firstReceipts: firstNReceipts.map(r => ({ documentId: r.documentId }))
-                        }]
-                    }
-                });
+//                 // Create completion record
+//                 await strapi.documents('api::completed-task.completed-task').create({
+//                     data: {
+//                         user: userDocumentId,
+//                         task: 'scanFirstReceipts',
+//                         cashback: taskCashback,
+//                         details: [{
+//                             __component: 'completed-tasks.otskanirujte-pervye-cheki',
+//                             firstReceipts: firstNReceipts.map(r => ({ documentId: r.documentId }))
+//                         }]
+//                     }
+//                 });
 
-                strapi.log.info(`[Task] scanFirstReceipts completed for user ${userDocumentId} → +${taskCashback} cashback`);
+//                 strapi.log.info(`[Task] scanFirstReceipts completed for user ${userDocumentId} → +${taskCashback} cashback`);
 
-                // Recalculate balance so the new task cashback appears immediately
-                await updateUserBalance(userDocumentId);
-            }
-        }
-    }
-}
+//                 // Recalculate balance so the new task cashback appears immediately
+//                 await updateUserBalance(userDocumentId);
+//             }
+//         }
+//     }
+// }

@@ -4,6 +4,7 @@ export interface CompletedTasksOtskanirujtePervyeCheki
   extends Struct.ComponentSchema {
   collectionName: 'components_completed_tasks_otskanirujte_pervye_cheki';
   info: {
+    description: '';
     displayName: '\u041E\u0442\u0441\u043A\u0430\u043D\u0438\u0440\u0443\u0439\u0442\u0435 \u043F\u0435\u0440\u0432\u044B\u0435 \u0447\u0435\u043A\u0438';
     icon: 'layer';
   };
@@ -12,6 +13,7 @@ export interface CompletedTasksOtskanirujtePervyeCheki
       'oneToMany',
       'api::receipt.receipt'
     >;
+    numReceiptsRequired: Schema.Attribute.Integer & Schema.Attribute.Required;
   };
 }
 

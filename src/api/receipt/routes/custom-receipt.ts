@@ -10,6 +10,11 @@ export default {
             handler: 'receipt.submit',
         },
         {
+            method: 'POST',
+            path: '/receipts/submit-for-task',
+            handler: 'receipt.submitForTask',
+        },
+        {
             method: 'GET',
             path: '/receipts/me',
             handler: 'receipt.me',

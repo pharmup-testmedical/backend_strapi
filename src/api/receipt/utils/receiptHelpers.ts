@@ -589,17 +589,17 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
             !text.includes('үстеме') &&
             !text.includes('ҚҚС') &&
             text.length > 0) {
-            
+
             // Check if next line is a price line
             if (i + 1 < textLines.length && textLines[i + 1].trim().includes('(Дана/Штука)')) {
                 // This line starts a product name
                 currentProductName = text
                 collectingProductName = true
-            } 
+            }
             // Check if we're currently collecting a product name and this line continues it
-            else if (collectingProductName && 
-                     i + 1 < textLines.length && 
-                     !textLines[i + 1].trim().includes('(Дана/Штука)')) {
+            else if (collectingProductName &&
+                i + 1 < textLines.length &&
+                !textLines[i + 1].trim().includes('(Дана/Штука)')) {
                 // Continue the product name
                 currentProductName = currentProductName.replace(/\s+$/, '') + ' ' + text
             }
@@ -622,7 +622,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                         // If no product name was extracted, throw an error
                         throw new Error('Could not extract product name from WOFD receipt')
                     }
-                    
+
                     result.items.push({
                         name: currentProductName,
                         department: '1',
@@ -631,7 +631,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice)
                     })
-                    
+
                     currentProductName = ''
                     collectingProductName = false
                 }
@@ -665,4 +665,10 @@ export const calculateFinalCashback = (items: any[]): number => {
 const parseKazakhNumber = (numStr: string): number => {
     const cleaned = numStr.replace(/\s+/g, '').replace(',', '.')
     return parseFloat(cleaned)
+}
+
+export const getRemainingDeclension = (count: number): string => {
+    if (count % 10 === 1 && count % 100 !== 11) return 'а';
+    if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'а';
+    return 'ов';
 }

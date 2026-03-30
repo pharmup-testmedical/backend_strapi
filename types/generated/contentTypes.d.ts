@@ -801,6 +801,8 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    countsForScanTask: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -936,6 +938,7 @@ export interface ApiTestTest extends Struct.CollectionTypeSchema {
         },
         number
       >;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

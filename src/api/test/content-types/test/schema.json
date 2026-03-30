@@ -27,6 +27,11 @@
       "type": "decimal",
       "required": true,
       "min": 0
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "unique": false
     }
   }
 }

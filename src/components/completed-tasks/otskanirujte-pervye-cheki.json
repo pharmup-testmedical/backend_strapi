@@ -2,7 +2,8 @@
   "collectionName": "components_completed_tasks_otskanirujte_pervye_cheki",
   "info": {
     "displayName": "Отсканируйте первые чеки",
-    "icon": "layer"
+    "icon": "layer",
+    "description": ""
   },
   "options": {},
   "attributes": {
@@ -10,6 +11,10 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::receipt.receipt"
+    },
+    "numReceiptsRequired": {
+      "type": "integer",
+      "required": true
     }
   }
 }

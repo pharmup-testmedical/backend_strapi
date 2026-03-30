@@ -92,6 +92,10 @@
         "wofd"
       ],
       "required": true
+    },
+    "countsForScanTask": {
+      "type": "boolean",
+      "default": false
     }
   }
 }

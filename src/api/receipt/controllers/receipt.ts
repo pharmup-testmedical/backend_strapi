@@ -3,411 +3,402 @@
  */
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
-// import https from 'https'
-// import axios from 'axios'
 
-// Interfaces for type safety
-interface Product {
-  documentId: string
-  canonicalName: string
-  cashbackAmount: number
-  productAliases: ProductAlias[]
+// ==================== EXPORTED TYPES ====================
+export type ReceiptVerificationStatus =
+  'auto_verified' |
+  'auto_rejected' |
+  'manual_review' |
+  'auto_rejected_late_submission' |
+  'auto_partially_verified' |
+  'manually_verified' |
+  'manually_rejected' |
+  'manually_partially_verified';
+
+export interface CashbackItem {
+  __component: 'receipt-item.item';
+  name: string;
+  claimedProduct: { documentId: string };
+  verificationStatus: string;
+  props: any;
+  productAlias?: { documentId: string };
+  cashback: number;
 }
 
-interface ProductAlias {
-  documentId: string
-  alternativeName: string
-  verificationStatus: 'unverified' | 'verified' | 'rejected'
-  product: Product
-}
+export type ReceiptItem = any;
 
-export type ReceiptVerificationStatus = 'auto_verified' | 'auto_rejected' | 'manual_review' | 'auto_rejected_late_submission' | 'auto_partially_verified' | 'manually_verified' | 'manually_rejected' | 'manually_partially_verified'
-type ItemVerificationStatus = 'auto_verified_canon' | 'auto_verified_alias' | 'auto_rejected_alias' | 'manual_review' | 'manually_verified_alias' | 'manually_rejected_alias'
-
-interface ItemProps {
-  unitPrice: number
-  quantity: number
-  measureUnit: string
-  totalPrice: number
-  department: string
-}
-
-interface BaseItem {
-  __component: string
-  name: string
-  props: ItemProps
-}
-
-interface ProductClaimItem extends BaseItem {
-  __component: 'receipt-item.product-claim'
-}
-
-export interface CashbackItem extends BaseItem {
-  __component: 'receipt-item.item'
-  claimedProduct: { documentId: string }
-  verificationStatus: ItemVerificationStatus
-  productAlias?: { documentId: string }
-  cashback: number
-}
-
-export type ReceiptItem = ProductClaimItem | CashbackItem
-
-interface SubmitContext {
-  ctx: any
-  qrData: string
-  itemMappings: { [itemName: string]: string } // key: CashbackItem -> value: documentId of Product
-  userId: string
-  ofdType: 'oofd' | 'kofd' | 'wofd'
-}
-
-interface ReceiptData {
-  oofd_uid?: string
-  fiscalId: string
-  date: string
-  totalAmount: number
-  taxAmount?: number
-  taxRate?: number
-  kktCode: string
-  kktSerialNumber: string
-  paymentMethod?: string
-  items: any[]
-  ofdType: 'oofd' | 'kofd' | 'wofd'
-}
-
+// ==================== CONTROLLER ====================
 export default factories.createCoreController('api::receipt.receipt', ({ strapi }) => ({
+
   async submit(ctx: any) {
     try {
-      const {
-        qrData,
-        itemMappings,
-        ofdType = 'oofd'
-      }: {
-        qrData: string;
-        itemMappings: { [itemName: string]: string },
-        ofdType: 'oofd' | 'kofd' | 'wofd';
-      } = ctx.request.body
-
-      // Validate ofdType is provided
-      if (!ofdType) {
-        throw new Error('Тип ОФД обязателен (oofd, kofd, или wofd)')
-      }
-
-      const userId = ctx.state.user.id
-      strapi.log.info(`Received receipt submission from user with id: ${userId} for OFD type: ${ofdType}`)
-
-      const context: SubmitContext = { ctx, qrData, itemMappings, userId, ofdType }
-      await validateInput(context)
-
-      const rawReceiptData = await parseReceiptByOfdType(qrData, ofdType, { strapi })
-      // Convert Date to string if necessary
-      const receiptData: ReceiptData = {
-        ...rawReceiptData,
-        date: rawReceiptData.date instanceof Date ? rawReceiptData.date.toISOString() : rawReceiptData.date,
-        ofdType
-      }
-
-      await checkForDuplicateReceipt(context, receiptData)
-
-      const receiptValidDays = await getReceiptValidDays()
-      const isWithinTimeLimit = checkTimeLimit(receiptData.date, receiptValidDays)
-
-      if (!isWithinTimeLimit) {
-        await createLateSubmissionReceipt(context, receiptData)
-
-        throw new Error(`Чек превысил срок годности в ${receiptValidDays} дней.`)
-      }
-
-      await validateItemNames(context, receiptData)
-      const products = await validateAndFetchProducts(itemMappings)
-      const { items, hasVerified, hasRejected, hasNonVerified } = await processReceiptItems(receiptData, itemMappings, products)
-
-      return await createReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified)
+      const { receipt } = await handleReceiptSubmission(ctx, false);
+      return ctx.created({
+        message: 'Чек успешно отправлен и будет обработан',
+        receipt
+      });
     } catch (error: any) {
-      strapi.log.error(`Error processing receipt for user ${ctx.state.user.id}: ${error.message}`)
-      return ctx.badRequest(error.message || 'Непредвиденная ошибка при обработке чека')
+      strapi.log.error(`Error processing receipt for user ${ctx.state.user?.id}: ${error.message}`);
+      return ctx.badRequest(error.message || 'Непредвиденная ошибка при обработке чека');
+    }
+  },
+
+  async submitForTask(ctx: any) {
+    try {
+      const userId = ctx.state.user.id;
+      const userDocumentId = ctx.state.user.documentId;
+
+      strapi.log.info(`[submitForTask] Processing for user ${userId} (${userDocumentId})`);
+
+      const existingCompletion = await strapi.documents('api::completed-task.completed-task').findFirst({
+        filters: {
+          user: userId,
+          task: 'scanFirstReceipts',
+          cashback: { $gt: 0 }
+        }
+      });
+
+      if (existingCompletion) {
+        return ctx.badRequest('Вы уже выполнили это задание');
+      }
+
+      const tasksPage = await strapi.documents('api::tasks-page.tasks-page').findFirst({
+        populate: { scanFirstReceipts: true }
+      });
+
+      const scanTask = tasksPage?.scanFirstReceipts;
+      if (!scanTask?.active) {
+        return ctx.badRequest('Задание недоступно');
+      }
+
+      const { receipt, verificationStatus } = await handleReceiptSubmission(ctx, true);
+
+      strapi.log.info(`[submitForTask] Created receipt ${receipt.documentId} with status ${verificationStatus}`);
+
+      return ctx.created({
+        message: 'Чек успешно отправлен и засчитан для задания',
+        receipt
+      });
+    } catch (error: any) {
+      strapi.log.error(`Error in submitForTask for user ${ctx.state.user?.id}: ${error.message}`);
+      return ctx.badRequest(error.message || 'Ошибка при обработке чека');
     }
   },
 
   async me(ctx: any) {
     try {
-      const userId = ctx.state.user.id
+      const userId = ctx.state.user.id;
       if (!userId) {
-        strapi.log.warn('No authenticated user found')
-        return ctx.unauthorized('Вы должны быть авторизованы для просмотра своих чеков')
+        return ctx.unauthorized('Вы должны быть авторизованы для просмотра своих чеков');
       }
 
-      // Extract date filters from query parameters
-      const { startDate, endDate } = ctx.query
-      const filters: any = { user: userId }
+      const { startDate, endDate } = ctx.query;
+      const filters: any = { user: userId };
 
-      // Add date range filter if provided
       if (startDate || endDate) {
-        filters.date = {}
-        if (startDate) {
-          filters.date.$gte = startDate
-        }
-        if (endDate) {
-          filters.date.$lte = endDate
-        }
+        filters.date = {};
+        if (startDate) filters.date.$gte = startDate;
+        if (endDate) filters.date.$lte = endDate;
       }
 
       const receipts = await strapi.documents('api::receipt.receipt').findMany({
-        filters: filters,
+        filters,
         populate: ctx.query.populate || { items: true },
-        sort: { date: 'desc' }, // Add sorting by date
-      })
+        sort: { date: 'desc' }
+      });
 
-      strapi.log.info(`Fetched ${receipts.length} receipts for user ${userId} with date filter: ${startDate || 'none'} to ${endDate || 'none'}`)
       return ctx.send({
         data: receipts,
-        meta: { total: receipts.length },
-      })
+        meta: { total: receipts.length }
+      });
     } catch (error: any) {
-      strapi.log.error(`Error fetching receipts for user ${ctx.state.user?.id || 'unknown'}: ${error.message}`)
-      return ctx.badRequest('Не удалось загрузить ваши чеки')
+      strapi.log.error(`Error fetching receipts for user ${ctx.state.user?.id || 'unknown'}: ${error.message}`);
+      return ctx.badRequest('Не удалось загрузить ваши чеки');
     }
   },
 
   async update(ctx: any) {
     try {
-      const { documentId } = ctx.params // Extract documentId from route params
-      const params = ctx.request.body // Extract update parameters from request body
-      strapi.log.info(`Updating receipt with documentId: ${documentId} and params: ${JSON.stringify(params)}`)
-      const result = await super.update({ params: { documentId }, ...params })
-      return result
+      const result = await super.update(ctx);
+      return result;
     } catch (error: any) {
-      strapi.log.error(`Error updating receipt for documentId ${ctx.params.documentId}: ${error.message}`)
-      return ctx.badRequest(`Не удалось обновить чек: ${error.message || 'Ошибка при обновлении'}`)
+      strapi.log.error(`Error updating receipt ${ctx.params.documentId}: ${error.message}`);
+      return ctx.badRequest(`Не удалось обновить чек: ${error.message || 'Ошибка при обновлении'}`);
     }
   },
 
   async readOFD(ctx: any) {
-    const { fiscalUrl, ofdType = 'oofd' } = ctx.request.body
-
-    if (!fiscalUrl) {
-      return ctx.badRequest('Fiscal URL is required')
-    }
-
-    if (!ofdType) {
-      return ctx.badRequest('OFD type is required (oofd, kofd, or wofd)')
-    }
+    const { fiscalUrl, ofdType = 'oofd' } = ctx.request.body;
+    if (!fiscalUrl) return ctx.badRequest('Fiscal URL is required');
+    if (!ofdType) return ctx.badRequest('OFD type is required');
 
     try {
-      // Use the appropriate parser based on OFD type
-      const receiptData = await parseReceiptByOfdType(fiscalUrl, ofdType, { strapi })
-
-      ctx.send({
-        ofdType,
-        receiptData
-      })
-
+      const receiptData = await parseReceiptByOfdType(fiscalUrl, ofdType, { strapi });
+      return ctx.send({ ofdType, receiptData });
     } catch (error: any) {
-      strapi.log.error(`[readOFD] Error for ${ofdType}:`, error.message)
-      ctx.throw(400, error.message)
+      strapi.log.error(`[readOFD] Error for ${ofdType}:`, error.message);
+      ctx.throw(400, error.message);
     }
   }
-}))
+}));
 
-// Validation Functions
-async function validateInput({ ctx, qrData, itemMappings, userId }: SubmitContext) {
-  if (!qrData || typeof qrData !== 'string') {
-    strapi.log.warn(`Invalid QR data for user ${userId}`)
-    throw new Error('QR-код обязателен и должен быть действительной строкой')
-  }
+// ====================== MAIN SUBMISSION HANDLER ======================
+async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
+  const {
+    qrData,
+    itemMappings,
+    ofdType = 'oofd'
+  } = ctx.request.body;
 
+  if (!qrData || typeof qrData !== 'string') throw new Error('QR-код обязателен');
   if (!itemMappings || typeof itemMappings !== 'object' || Object.keys(itemMappings).length === 0) {
-    strapi.log.warn(`Empty or invalid itemMappings for user ${userId}`)
-    throw new Error('Требуется хотя бы одно сопоставление имени товара и documentId продукта')
+    throw new Error('Требуется хотя бы одно сопоставление имени товара');
   }
+  if (!ofdType) throw new Error('Тип ОФД обязателен (oofd, kofd, или wofd)');
+
+  const userId = ctx.state.user.id;
+  const context: any = { ctx, qrData, itemMappings, userId, ofdType };
+
+  const rawReceiptData = await parseReceiptByOfdType(qrData, ofdType, { strapi });
+
+  const receiptData = {
+    ...rawReceiptData,
+    date: rawReceiptData.date instanceof Date ? rawReceiptData.date.toISOString() : rawReceiptData.date,
+    ofdType
+  };
+
+  await checkForDuplicateReceipt(context, receiptData);
+
+  const receiptValidDays = await getReceiptValidDays();
+  const isWithinTimeLimit = checkTimeLimit(receiptData.date, receiptValidDays);
+
+  if (!isWithinTimeLimit) {
+    await createLateSubmissionReceipt(context, receiptData);
+    throw new Error(`Чек превысил срок годности в ${receiptValidDays} дней.`);
+  }
+
+  await validateItemNames(context, receiptData);
+  const products = await validateAndFetchProducts(itemMappings);
+  const { items, hasVerified, hasRejected, hasNonVerified } = await processReceiptItems(
+    receiptData,
+    itemMappings,
+    products
+  );
+
+  return await processAndCreateReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified, isForTask);
 }
 
-async function checkForDuplicateReceipt({ qrData }: SubmitContext, receiptData: ReceiptData) {
+// ====================== RECEIPT CREATION ======================
+async function processAndCreateReceipt(
+  context: any,
+  receiptData: any,
+  items: any[],
+  hasVerified: boolean,
+  hasRejected: boolean,
+  hasNonVerified: boolean,
+  isForTask: boolean
+) {
+  let verificationStatus: ReceiptVerificationStatus = 'manual_review';
+
+  if (hasNonVerified) {
+    verificationStatus = 'manual_review';
+  } else if (hasVerified) {
+    verificationStatus = hasRejected ? 'auto_partially_verified' : 'auto_verified';
+  } else if (hasRejected) {
+    verificationStatus = 'auto_rejected';
+  }
+
+  const finalCashback = calculateFinalCashback(items);
+
+  const receipt = await strapi.documents('api::receipt.receipt').create({
+    data: {
+      oofd_uid: receiptData.oofd_uid,
+      qrData: context.ctx.request.body.qrData,
+      fiscalId: receiptData.fiscalId,
+      verificationStatus,
+      user: context.userId,
+      date: receiptData.date,
+      totalAmount: receiptData.totalAmount,
+      taxAmount: receiptData.taxAmount,
+      taxRate: receiptData.taxRate,
+      kktCode: receiptData.kktCode,
+      kktSerialNumber: receiptData.kktSerialNumber,
+      paymentMethod: receiptData.paymentMethod,
+      ofdType: receiptData.ofdType,
+      items: JSON.parse(JSON.stringify(items)),
+      finalCashback,
+      countsForScanTask: isForTask,
+      publishedAt: new Date()
+    }
+  });
+
+  strapi.log.info(`Created receipt ${receipt.documentId} (forTask: ${isForTask}) with status ${verificationStatus}`);
+
+  return { receipt, verificationStatus };
+}
+
+// ====================== YOUR ORIGINAL HELPER FUNCTIONS ======================
+
+async function checkForDuplicateReceipt({ qrData }: any, receiptData: any) {
   const existingReceipts = await strapi.documents('api::receipt.receipt').findMany({
     filters: { qrData },
-  })
-
-  if (existingReceipts.length > 0) {
-    strapi.log.warn(`Duplicate receipt submission attempted: ${qrData}`)
-    throw new Error('Чек уже был отправлен')
-  }
+  });
+  if (existingReceipts.length > 0) throw new Error('Чек уже был отправлен');
 
   const duplicateFiscal = await strapi.documents('api::receipt.receipt').findMany({
     filters: { fiscalId: receiptData.fiscalId },
-  })
-
-  if (duplicateFiscal.length > 0) {
-    strapi.log.warn(`Duplicate fiscal ID submission: ${receiptData.fiscalId}`)
-    throw new Error('Чек уже был отправлен')
-  }
+  });
+  if (duplicateFiscal.length > 0) throw new Error('Чек уже был отправлен');
 }
 
 async function getReceiptValidDays(): Promise<number> {
   const websiteSetup = await strapi.documents('api::website-setup.website-setup').findFirst({
     populate: 'promo',
-  })
-  const receiptValidDays = websiteSetup?.promo.receiptValidDays || 5
+  });
+  const receiptValidDays = websiteSetup?.promo?.receiptValidDays || 5;
   if (!Number.isInteger(receiptValidDays) || receiptValidDays <= 0) {
-    strapi.log.warn(`Invalid receiptValidDays value: ${receiptValidDays}. Using default of 5 days.`)
-    return 5
+    return 5;
   }
-  strapi.log.info(`Using receiptValidDays: ${receiptValidDays}`)
-  return receiptValidDays
+  return receiptValidDays;
 }
 
 function checkTimeLimit(receiptDate: string, receiptValidDays: number): boolean {
-  const currentDate = new Date()
-  const timeDiff = (currentDate.getTime() - new Date(receiptDate).getTime()) / (1000 * 3600 * 24)
-  return timeDiff <= receiptValidDays
+  const timeDiff = (new Date().getTime() - new Date(receiptDate).getTime()) / (1000 * 3600 * 24);
+  return timeDiff <= receiptValidDays;
 }
 
-// Item Processing Functions
-function validateItemProps(itemName: string, props: ItemProps): void {
+function validateItemProps(itemName: string, props: any): void {
   if (
-    typeof props.unitPrice !== 'number' ||
-    isNaN(props.unitPrice) ||
-    typeof props.quantity !== 'number' ||
-    props.quantity <= 0 ||
-    typeof props.totalPrice !== 'number' ||
-    isNaN(props.totalPrice) ||
-    !props.measureUnit ||
-    !props.department
+    typeof props.unitPrice !== 'number' || isNaN(props.unitPrice) ||
+    typeof props.quantity !== 'number' || props.quantity <= 0 ||
+    typeof props.totalPrice !== 'number' || isNaN(props.totalPrice) ||
+    !props.measureUnit || !props.department
   ) {
-    strapi.log.warn(`Invalid props for item ${itemName}: ${JSON.stringify(props)}`)
-    throw new Error(`Недопустимые свойства для товара ${itemName}: убедитесь, что все обязательные поля заполнены корректно`)
+    throw new Error(`Недопустимые свойства для товара ${itemName}`);
   }
 }
 
-async function validateItemNames({ itemMappings }: SubmitContext, receiptData: ReceiptData) {
-  const receiptItemNames = receiptData.items.map((item: any) => item.name.toLowerCase())
+async function validateItemNames({ itemMappings }: any, receiptData: any) {
+  const receiptItemNames = receiptData.items.map((item: any) => item.name.toLowerCase());
   const invalidItemNames = Object.keys(itemMappings).filter(
     (itemName) => !receiptItemNames.includes(itemName.toLowerCase())
-  )
+  );
 
   if (invalidItemNames.length > 0) {
-    strapi.log.warn(`Invalid item names submitted: ${invalidItemNames.join(', ')}`)
-    throw new Error(`Недопустимые имена товаров: ${invalidItemNames.join(', ')}`)
+    throw new Error(`Недопустимые имена товаров: ${invalidItemNames.join(', ')}`);
   }
 }
 
-async function validateAndFetchProducts(itemMappings: { [itemName: string]: string }): Promise<Product[]> {
-  const productIds = Object.values(itemMappings)
+async function validateAndFetchProducts(itemMappings: { [itemName: string]: string }): Promise<any[]> {
+  const productIds = Object.values(itemMappings);
   const productPromises = productIds.map(async (productId) => {
     const product = await strapi.documents('api::product.product').findOne({
       documentId: productId,
       status: 'published',
       filters: { cashbackEligible: true },
       populate: { productAliases: true },
-    })
-    return { productId, product }
-  })
+    });
+    return { productId, product };
+  });
 
-  const productResults = await Promise.all(productPromises)
-  const invalidProducts = productResults.filter(({ product }) => !product)
+  const productResults = await Promise.all(productPromises);
+  const invalidProducts = productResults.filter(({ product }) => !product);
 
   if (invalidProducts.length > 0) {
-    const invalidIds = invalidProducts.map(({ productId }) => productId)
-    strapi.log.warn(`Invalid or non-eligible product documentIds: ${invalidIds.join(', ')}`)
-    throw new Error('Не все отправленные продукты являются действительными, подходящими для кешбэка и опубликованными')
+    throw new Error('Не все отправленные продукты являются действительными и подходят для кешбэка');
   }
 
-  return productResults.map(({ product }) => product as Product)
+  return productResults.map(({ product }) => product);
 }
 
 async function processReceiptItems(
-  receiptData: ReceiptData,
+  receiptData: any,
   itemMappings: { [itemName: string]: string },
-  products: Product[]
-): Promise<{ items: ReceiptItem[]; hasVerified: boolean; hasRejected: boolean; hasNonVerified: boolean }> {
-  let hasVerified = false
-  let hasRejected = false
-  let hasNonVerified = false
+  products: any[]
+) {
+  let hasVerified = false;
+  let hasRejected = false;
+  let hasNonVerified = false;
 
   const items = await Promise.all(
-    receiptData.items.map(async (itemData: any): Promise<ReceiptItem> => {
-      const itemName = itemData.name
-      const props: ItemProps = {
+    receiptData.items.map(async (itemData: any) => {
+      const itemName = itemData.name;
+      const props = {
         unitPrice: itemData.unitPrice,
         quantity: itemData.quantity,
         measureUnit: itemData.measureUnit,
         totalPrice: itemData.totalPrice,
         department: itemData.department,
-      }
+      };
 
       const matchedKey = Object.keys(itemMappings).find(
         (key) => key.toLowerCase() === itemName.toLowerCase()
-      )
-      const productId = matchedKey ? itemMappings[matchedKey] : null
+      );
+      const productId = matchedKey ? itemMappings[matchedKey] : null;
 
       if (!productId) {
-        strapi.log.info(`Item ${itemName} is not claimed, creating product claim.`)
         return {
           __component: 'receipt-item.product-claim',
           name: itemName,
           props,
-        }
+        };
       }
 
-      validateItemProps(itemName, props)
+      validateItemProps(itemName, props);
 
-      const product = products.find((p) => p.documentId === productId)
+      const product = products.find((p: any) => p.documentId === productId);
       if (!product) {
-        strapi.log.warn(`Product with documentId ${productId} not found for item ${itemName}`)
-        throw new Error(`Продукт с documentId ${productId} не существует или не подходит для кешбэка`)
+        throw new Error(`Продукт с documentId ${productId} не найден`);
       }
 
-      const cashbackItem = await processClaimedItem(itemName, props, product)
+      const cashbackItem = await processClaimedItem(itemName, props, product);
+
       if (['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(cashbackItem.verificationStatus)) {
-        hasVerified = true
+        hasVerified = true;
       } else if (cashbackItem.verificationStatus === 'auto_rejected_alias') {
-        hasRejected = true
+        hasRejected = true;
       } else if (cashbackItem.verificationStatus === 'manual_review') {
-        hasNonVerified = true
+        hasNonVerified = true;
       }
 
-      return cashbackItem
+      return cashbackItem;
     })
-  )
+  );
 
-  return { items, hasVerified, hasRejected, hasNonVerified }
+  return { items, hasVerified, hasRejected, hasNonVerified };
 }
 
-async function processClaimedItem(itemName: string, props: ItemProps, product: Product): Promise<CashbackItem> {
-  let verificationStatus: ItemVerificationStatus = 'manual_review'
-  let productAlias: { documentId: string } | null = null
+async function processClaimedItem(itemName: string, props: any, product: any) {
+  let verificationStatus = 'manual_review';
+  let productAlias = null;
 
   if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
-    verificationStatus = 'auto_verified_canon'
+    verificationStatus = 'auto_verified_canon';
   } else {
-    const productAliases = (product.productAliases || []) as ProductAlias[]
+    const productAliases = product.productAliases || [];
     const matchingAlias = productAliases.find(
-      (alias) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-    )
+      (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+    );
 
     if (matchingAlias) {
       if (matchingAlias.verificationStatus === 'verified') {
-        verificationStatus = 'auto_verified_alias'
+        verificationStatus = 'auto_verified_alias';
       } else if (matchingAlias.verificationStatus === 'rejected') {
-        verificationStatus = 'auto_rejected_alias'
+        verificationStatus = 'auto_rejected_alias';
       } else {
-        verificationStatus = 'manual_review'
+        verificationStatus = 'manual_review';
       }
-      productAlias = { documentId: matchingAlias.documentId }
+      productAlias = { documentId: matchingAlias.documentId };
     } else {
-      verificationStatus = 'manual_review'
-      try {
-        const newAlias = await strapi.documents('api::product-alias.product-alias').create({
-          data: {
-            alternativeName: itemName,
-            verificationStatus: 'unverified',
-            product: { documentId: product.documentId },
-          },
-        })
-        productAlias = { documentId: newAlias.documentId }
-        strapi.log.debug(`Created product alias for item ${itemName}: ${newAlias.documentId}`)
-      } catch (error: any) {
-        strapi.log.error(`Failed to create product alias for item ${itemName}: ${error.message}`)
-        throw new Error(`Не удалось создать псевдоним продукта для ${itemName}: ${error.message}`)
-      }
+      verificationStatus = 'manual_review';
+      const newAlias = await strapi.documents('api::product-alias.product-alias').create({
+        data: {
+          alternativeName: itemName,
+          verificationStatus: 'unverified',
+          product: { documentId: product.documentId },
+        },
+      });
+      productAlias = { documentId: newAlias.documentId };
     }
   }
 
@@ -419,34 +410,25 @@ async function processClaimedItem(itemName: string, props: ItemProps, product: P
     props,
     productAlias,
     cashback: product.cashbackAmount || 0,
-  }
+  };
 }
 
-async function createLateSubmissionReceipt(
-  { ctx, userId }: SubmitContext,
-  receiptData: ReceiptData,
-) {
-  const items: ReceiptItem[] = receiptData.items.map((itemData: any) => {
-    const props: ItemProps = {
+async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: any) {
+  const items = receiptData.items.map((itemData: any) => ({
+    __component: 'receipt-item.product-claim',
+    name: itemData.name,
+    props: {
       unitPrice: itemData.unitPrice,
       quantity: itemData.quantity,
       measureUnit: itemData.measureUnit,
       totalPrice: itemData.totalPrice,
       department: itemData.department,
     }
+  }));
 
-    validateItemProps(itemData.name, props)
+  const finalCashback = calculateFinalCashback(items);
 
-    return {
-      __component: 'receipt-item.product-claim',
-      name: itemData.name,
-      props,
-    }
-  })
-
-  const finalCashback = calculateFinalCashback(items)
-
-  const receipt = await strapi.documents('api::receipt.receipt').create({
+  await strapi.documents('api::receipt.receipt').create({
     data: {
       oofd_uid: receiptData.oofd_uid,
       qrData: ctx.request.body.qrData,
@@ -463,58 +445,6 @@ async function createLateSubmissionReceipt(
       ofdType: receiptData.ofdType,
       items,
       finalCashback,
-    },
-  })
-
-  strapi.log.info(`Created late submission receipt documentId ${receipt.documentId} for user ${userId}`)
-}
-
-async function createReceipt(
-  { ctx, userId }: SubmitContext,
-  receiptData: ReceiptData,
-  items: ReceiptItem[],
-  hasVerified: boolean,
-  hasRejected: boolean,
-  hasNonVerified: boolean
-) {
-  let receiptVerificationStatus: ReceiptVerificationStatus = 'manual_review'
-
-  if (hasNonVerified) {
-    receiptVerificationStatus = 'manual_review'
-  } else if (hasVerified) {
-    if (hasRejected)
-      receiptVerificationStatus = 'auto_partially_verified'
-    else
-      receiptVerificationStatus = 'auto_verified'
-  } else if (!hasVerified && hasRejected) {
-    receiptVerificationStatus = 'auto_rejected'
-  }
-
-  const finalCashback = calculateFinalCashback(items)
-
-  const receipt = await strapi.documents('api::receipt.receipt').create({
-    data: {
-      oofd_uid: receiptData.oofd_uid,
-      qrData: ctx.request.body.qrData,
-      fiscalId: receiptData.fiscalId,
-      verificationStatus: receiptVerificationStatus,
-      user: userId,
-      date: receiptData.date,
-      totalAmount: receiptData.totalAmount,
-      taxAmount: receiptData.taxAmount,
-      taxRate: receiptData.taxRate,
-      kktCode: receiptData.kktCode,
-      kktSerialNumber: receiptData.kktSerialNumber,
-      paymentMethod: receiptData.paymentMethod,
-      ofdType: receiptData.ofdType,
-      items,
-      finalCashback,
-    },
-  })
-
-  strapi.log.info(`Created receipt documentId ${receipt.documentId} for user ${userId} with status ${receiptVerificationStatus}`)
-  return ctx.created({
-    message: 'Чек успешно отправлен и будет обработан',
-    receipt,
-  })
+    }
+  });
 }
