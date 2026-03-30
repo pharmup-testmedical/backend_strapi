@@ -126,6 +126,11 @@
       "relation": "oneToMany",
       "target": "plugin::users-permissions.user",
       "mappedBy": "referredBy"
+    },
+    "iin": {
+      "type": "string",
+      "required": false,
+      "unique": true
     }
   }
 }

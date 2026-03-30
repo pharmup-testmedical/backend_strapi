@@ -170,6 +170,54 @@ export default (plugin) => {
 
             ctx.body = { success: true };
         },
+
+        async updateMyIin(ctx: Context) {
+            const user = ctx.state.user;
+            if (!user) {
+                return ctx.unauthorized('Пользователь не авторизован');
+            }
+
+            const { iin } = ctx.request.body as { iin?: string };
+
+            if (!iin || typeof iin !== 'string') {
+                return ctx.badRequest('Требуется указать ИИН');
+            }
+
+            const trimmedIin = iin.trim();
+
+            if (trimmedIin.length !== 12) {
+                return ctx.badRequest('ИИН должен состоять из 12 символов');
+            }
+
+            if (!/^\d{12}$/.test(trimmedIin)) {
+                return ctx.badRequest('ИИН должен содержать только цифры');
+            }
+
+            // Optional: Check if IIN is already taken by another user
+            const existingUser = await strapi.query('plugin::users-permissions.user').findOne({
+                where: {
+                    iin: trimmedIin,
+                    id: { $ne: user.id },   // exclude current user
+                },
+            });
+
+            if (existingUser) {
+                return ctx.badRequest('Этот ИИН уже используется другим пользователем');
+            }
+
+            // Update user
+            await strapi.entityService.update(
+                'plugin::users-permissions.user',
+                user.id,
+                {
+                    data: {
+                        iin: trimmedIin,
+                    },
+                }
+            );
+
+            ctx.body = { success: true };
+        }
     };
 
     // Add the custom routes to users-permissions content-api routes
@@ -203,6 +251,17 @@ export default (plugin) => {
         config: {
             auth: {
                 scope: ['plugin::users-permissions.custom.updateMyCity'],
+            },
+        },
+    });
+
+    plugin.routes['content-api'].routes.push({
+        method: 'PUT',
+        path: '/me/iin',
+        handler: 'custom.updateMyIin',
+        config: {
+            auth: {
+                scope: ['plugin::users-permissions.custom.updateMyIin'],
             },
         },
     });
