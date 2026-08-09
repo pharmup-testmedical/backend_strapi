@@ -70,7 +70,7 @@ export default factories.createCoreController('api::test.test', ({ strapi }) => 
             const result = calculateTestScore(test.questions, answers)
 
             // Determine if passed (e.g., 80% correct)
-            const passingScore = 80 // 80% to pass
+            const passingScore = 100 // 80% to pass
             const passed = result.percentage >= passingScore
 
             if (!passed) {
