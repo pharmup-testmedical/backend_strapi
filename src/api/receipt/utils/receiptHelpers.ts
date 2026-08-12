@@ -362,14 +362,16 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         paymentMethod: ''
     }
 
-    let currentProductName = ''
-    let collectingProductName = false
+    // Lines that are not part of a product name (receipt metadata, separators,
+    // price lines) reset this buffer; everything else accumulates into it until
+    // a price line is reached, so multi-line product names are captured in full.
+    let pendingNameLines: string[] = []
 
     for (let i = 0; i < textLines.length; i++) {
         const text = textLines[i].trim()
 
         if ((text.includes('ФИСКАЛДЫҚ БЕЛГІ') || text.includes('ФИСКАЛЬНЫЙ ПРИЗНАК')) && !result.fiscalId) {
-            const fiscalMatch = text.match(/(\d{12})/)
+            const fiscalMatch = text.match(/(\d{12,})/)
             if (fiscalMatch) {
                 result.fiscalId = fiscalMatch[1]
             }
@@ -421,58 +423,55 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
             result.paymentMethod = 'CASH'
         }
 
-        // Detect product name lines - KOFD specific pattern
-        const isProductStart = text.match(/^\d+\s+[A-ZА-Я]/) &&
-            !text.includes('₸') &&
-            !text.includes('(Штука)')
-
-        if (isProductStart) {
-            // Start new product name
-            currentProductName = text
-            collectingProductName = true
-        }
-        // Check if this is a continuation line (comes after a product name line but before price line)
-        else if (collectingProductName &&
-            !text.includes('₸') &&
-            !text.includes('(Штука)') &&
-            text.length > 0 &&
-            !text.includes('ИТОГО') &&
-            !text.includes('БАРЛЫҒЫ') &&
-            !text.includes('ФИСКАЛДЫҚ') &&
-            !text.includes('УАҚЫТЫ') &&
-            !text.includes('Чектің') &&
-            !text.includes('Ауысым') &&
-            !text.includes('КАССИР') &&
-            !text.includes('КЗН') &&
-            !text.includes('КТН')) {
-
-            // This is a continuation of the product name
-            // Remove trailing spaces from current name and add the continuation
-            currentProductName = currentProductName.replace(/\s+$/, '') + ' ' + text
-        }
-
-        // When we find a price line, finalize the current product
-        if (text.includes('(Штука)') && text.includes('₸') && text.includes('=')) {
-            const itemMatch = text.match(/(\d+)\s+\(Штука\)\s+x\s+([\d ,.]+)₸\s+=\s+([\d ,.]+)₸/)
-            if (itemMatch && currentProductName) {
+        // When we find a price line, finalize the product using everything
+        // accumulated in the buffer since the previous item/boundary line.
+        // Unit wording (Штука, Упаковка, etc.) varies by product/KKM, so the
+        // check below only requires the surrounding "qty (unit) x ... = ..."
+        // structure, not a specific unit word.
+        if (/\(\S[^)]*\)\s*x\s*[\d ,.]+₸\s*=\s*[\d ,.]+₸/.test(text)) {
+            const itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d ,.]+)₸\s+=\s+([\d ,.]+)₸/)
+            const productName = pendingNameLines.join(' ').trim()
+            if (itemMatch && productName) {
                 const quantity = parseInt(itemMatch[1])
                 const unitPrice = parseFloat(itemMatch[2].replace(',', '.'))
                 const totalPrice = parseFloat(itemMatch[3].replace(',', '.'))
 
                 if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
                     result.items.push({
-                        name: currentProductName,
+                        name: productName,
                         department: '1',
                         unitPrice: Math.round(unitPrice),
                         quantity: quantity,
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice)
                     })
-
-                    currentProductName = ''
-                    collectingProductName = false
                 }
             }
+            pendingNameLines = []
+            continue
+        }
+
+        // Any receipt metadata/separator line ends the current product name buffer.
+        const isBoundaryLine =
+            text.length === 0 ||
+            text.includes('₸') ||
+            text.includes('ИТОГО') ||
+            text.includes('БАРЛЫҒЫ') ||
+            text.includes('ФИСКАЛДЫҚ') ||
+            text.includes('УАҚЫТЫ') ||
+            text.includes('Чектің') ||
+            text.includes('Ауысым') ||
+            text.includes('КАССИР') ||
+            text.includes('КЗН') ||
+            text.includes('КТН') ||
+            text.includes('GTIN') ||
+            text.includes('NTIN') ||
+            /^[*\-=_~]+$/.test(text)
+
+        if (isBoundaryLine) {
+            pendingNameLines = []
+        } else {
+            pendingNameLines.push(text)
         }
     }
 
@@ -500,14 +499,16 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         paymentMethod: ''
     }
 
-    let currentProductName = ''
-    let collectingProductName = false
+    // Lines that are not part of a product name (receipt metadata, separators,
+    // price lines) reset this buffer; everything else accumulates into it until
+    // a price line is reached, so multi-line product names are captured in full.
+    let pendingNameLines: string[] = []
 
     for (let i = 0; i < textLines.length; i++) {
         const text = textLines[i].trim()
 
         if ((text.includes('Фискалдық белгі') || text.includes('Фискальный признак')) && !result.fiscalId) {
-            const fiscalMatch = text.match(/(\d{12})/)
+            const fiscalMatch = text.match(/(\d{12,})/)
             if (fiscalMatch) {
                 result.fiscalId = fiscalMatch[1]
             }
@@ -569,73 +570,61 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
             result.paymentMethod = 'CASH'
         }
 
-        // WOFD product name detection with multi-line support
-        if (!text.includes('(Дана/Штука)') &&
-            !text.includes('₸') &&
-            !text.includes('ИТОГО') &&
-            !text.includes('БАРЛЫҒЫ') &&
-            !text.includes('Фискалдық') &&
-            !text.includes('Фискальный') &&
-            !text.includes('УАҚЫТЫ') &&
-            !text.includes('ВРЕМЯ') &&
-            !text.includes('Чектің') &&
-            !text.includes('Ауысым') &&
-            !text.includes('КАССИР') &&
-            !text.includes('КЗН') &&
-            !text.includes('КТН') &&
-            !text.includes('Төленген') &&
-            !text.includes('Қайтарым') &&
-            !text.includes('Жеңілдік') &&
-            !text.includes('үстеме') &&
-            !text.includes('ҚҚС') &&
-            text.length > 0) {
+        // Price line: quantity + any parenthesized unit (Штука, Дана/Штука,
+        // Орама/Упаковка, etc. — the unit wording varies by product/KKM and
+        // must not be hardcoded) + unit price + total price.
+        const priceLineMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
 
-            // Check if next line is a price line
-            if (i + 1 < textLines.length && textLines[i + 1].trim().includes('(Дана/Штука)')) {
-                // This line starts a product name
-                currentProductName = text
-                collectingProductName = true
-            }
-            // Check if we're currently collecting a product name and this line continues it
-            else if (collectingProductName &&
-                i + 1 < textLines.length &&
-                !textLines[i + 1].trim().includes('(Дана/Штука)')) {
-                // Continue the product name
-                currentProductName = currentProductName.replace(/\s+$/, '') + ' ' + text
-            }
-        }
-
-        if (text.includes('(Дана/Штука)') && text.includes('x') && text.includes('=')) {
-            let itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
-
-            if (!itemMatch) {
-                itemMatch = text.match(/(\d+)\s+\(.*?\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
-            }
-
-            if (itemMatch) {
-                const quantity = parseInt(itemMatch[1])
-                const unitPrice = parseKazakhNumber(itemMatch[2].trim())
-                const totalPrice = parseKazakhNumber(itemMatch[3].trim())
+        if (priceLineMatch) {
+            const productName = pendingNameLines.join(' ').trim()
+            if (productName) {
+                const quantity = parseInt(priceLineMatch[1])
+                const unitPrice = parseKazakhNumber(priceLineMatch[2].trim())
+                const totalPrice = parseKazakhNumber(priceLineMatch[3].trim())
 
                 if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
-                    if (!currentProductName) {
-                        // If no product name was extracted, throw an error
-                        throw new Error('Could not extract product name from WOFD receipt')
-                    }
-
                     result.items.push({
-                        name: currentProductName,
+                        name: productName,
                         department: '1',
                         unitPrice: Math.round(unitPrice),
                         quantity: quantity,
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice)
                     })
-
-                    currentProductName = ''
-                    collectingProductName = false
                 }
             }
+            pendingNameLines = []
+            continue
+        }
+
+        // Any receipt metadata/separator line ends the current product name buffer.
+        const isBoundaryLine =
+            text.length === 0 ||
+            text.includes('₸') ||
+            text.includes('ИТОГО') ||
+            text.includes('БАРЛЫҒЫ') ||
+            text.includes('Фискалдық') ||
+            text.includes('Фискальный') ||
+            text.includes('УАҚЫТЫ') ||
+            text.includes('ВРЕМЯ') ||
+            text.includes('Чектің') ||
+            text.includes('Ауысым') ||
+            text.includes('КАССИР') ||
+            text.includes('КЗН') ||
+            text.includes('КТН') ||
+            text.includes('Төленген') ||
+            text.includes('Қайтарым') ||
+            text.includes('Жеңілдік') ||
+            text.includes('үстеме') ||
+            text.includes('ҚҚС') ||
+            text.includes('GTIN') ||
+            text.includes('NTIN') ||
+            /^[*\-=_~]+$/.test(text)
+
+        if (isBoundaryLine) {
+            pendingNameLines = []
+        } else {
+            pendingNameLines.push(text)
         }
     }
 

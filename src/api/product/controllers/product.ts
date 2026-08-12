@@ -20,6 +20,12 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                 filters: {
                     cashbackEligible: true,
                 },
+                // Strapi caps results at config/api.ts defaultLimit (25) unless
+                // told otherwise — this endpoint must return the full catalog,
+                // not just the first page.
+                pagination: {
+                    limit: -1,
+                },
                 populate: {
                     productAliases: {
                         fields: ['id', 'alternativeName', 'verificationStatus'],
