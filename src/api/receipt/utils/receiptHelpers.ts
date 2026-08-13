@@ -5,6 +5,27 @@ export const isValidDate = (dateString: string): boolean => {
     return !isNaN(Date.parse(dateString))
 }
 
+// OFD APIs (oofd/kofd/wofd) are external government-adjacent services that
+// occasionally respond slowly under load; a single timeout shouldn't fail
+// the whole scan, so one retry is attempted before giving up.
+const REQUEST_TIMEOUT_MS = 15000
+const requestWithRetry = async (apiUrl: string, httpsAgent: https.Agent, strapi: any, logPrefix: string) => {
+    try {
+        return await axios.get(apiUrl, {
+            httpsAgent,
+            timeout: REQUEST_TIMEOUT_MS,
+            headers: { 'Accept': 'application/json' },
+        })
+    } catch (error: any) {
+        strapi.log.warn(`[${logPrefix}] Request failed, retrying once: ${error.message}`)
+        return await axios.get(apiUrl, {
+            httpsAgent,
+            timeout: REQUEST_TIMEOUT_MS,
+            headers: { 'Accept': 'application/json' },
+        })
+    }
+}
+
 export const parseReceiptByOfdType = async (
     qrData: string,
     ofdType: 'oofd' | 'kofd' | 'wofd',
@@ -41,13 +62,7 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
     })
 
     try {
-        const response = await axios.get(apiUrl, {
-            httpsAgent,
-            timeout: 10000,
-            headers: {
-                'Accept': 'application/json',
-            }
-        })
+        const response = await requestWithRetry(apiUrl, httpsAgent, strapi, 'OOFD')
 
         let data
         try {
@@ -109,10 +124,26 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
 
         const paymentMethod = ticket.payments?.[0]?.paymentType || null
 
+        // OOFD represents a per-item discount as a separate synthetic entry
+        // (commodity: null, its own `discount` object keyed by product name)
+        // rather than as a field on the product entry itself. These aren't
+        // real products and must not be treated as items; instead, their sum
+        // needs to be netted against the matching product's total, since the
+        // product entry's own `commodity.sum` is the pre-discount amount.
+        const discountByName: Record<string, number> = {}
+        for (const raw of ticket.items || []) {
+            if (!raw.commodity && raw.discount?.name) {
+                const key = raw.discount.name
+                discountByName[key] = (discountByName[key] || 0) + (raw.discount.sum || 0)
+            }
+        }
+
         const items = ticket.items?.length
             ? ticket.items
+                .filter((item: any) => item.commodity)
                 .map((item: any, index: number) => {
                     const commodity = item.commodity || {}
+                    const discount = discountByName[commodity.name] || 0
                     const itemData = {
                         name: commodity.name || `Unknown_${index + 1}`,
                         department: commodity.sectionCode || 'Unknown',
@@ -121,7 +152,7 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                         measureUnit: commodity.measureUnitCode
                             ? data.measureUnits?.[commodity.measureUnitCode] || 'unit'
                             : 'unit',
-                        totalPrice: commodity.sum || 0,
+                        totalPrice: (commodity.sum || 0) - discount,
                     }
                     if (
                         !itemData.name ||
@@ -216,11 +247,7 @@ const parseKofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
         strapi.log.info(`[KOFD] Making request to: ${apiUrl}`)
 
         const httpsAgent = new https.Agent({ rejectUnauthorized: false })
-        const response = await axios.get(apiUrl, {
-            httpsAgent,
-            timeout: 10000,
-            headers: { 'Accept': 'application/json' }
-        })
+        const response = await requestWithRetry(apiUrl, httpsAgent, strapi, 'KOFD')
 
         const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
 
@@ -305,11 +332,7 @@ const parseWofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
         strapi.log.info(`[WOFD] Making request to: ${apiUrl}`)
 
         const httpsAgent = new https.Agent({ rejectUnauthorized: false })
-        const response = await axios.get(apiUrl, {
-            httpsAgent,
-            timeout: 10000,
-            headers: { 'Accept': 'application/json' }
-        })
+        const response = await requestWithRetry(apiUrl, httpsAgent, strapi, 'WOFD')
 
         const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
 
