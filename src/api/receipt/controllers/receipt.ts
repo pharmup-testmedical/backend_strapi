@@ -353,7 +353,7 @@ async function processReceiptItems(
 
       const cashbackItem = await processClaimedItem(itemName, props, product, itemData.ntin);
 
-      if (['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(cashbackItem.verificationStatus)) {
+      if (['auto_verified_canon', 'auto_verified_alias', 'auto_verified_ntin', 'manually_verified_alias'].includes(cashbackItem.verificationStatus)) {
         hasVerified = true;
       } else if (cashbackItem.verificationStatus === 'auto_rejected_alias') {
         hasRejected = true;
@@ -368,25 +368,70 @@ async function processReceiptItems(
   return { items, hasVerified, hasRejected, hasNonVerified };
 }
 
+async function findOrCreateAliasByName(
+  itemName: string,
+  ntin: string | null | undefined,
+  product: any,
+  defaultStatusForNew: 'unverified' | 'verified'
+) {
+  const productAliases = product.productAliases || [];
+  const existing = productAliases.find(
+    (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+  );
+
+  if (existing) {
+    // Keep the ntin on record up to date so an admin reviewing this alias
+    // can compare it against the product's own ntin/ntinAlternative.
+    if (ntin && existing.ntin !== ntin) {
+      await strapi.documents('api::product-alias.product-alias').update({
+        documentId: existing.documentId,
+        data: { ntin },
+      });
+    }
+    return existing;
+  }
+
+  return strapi.documents('api::product-alias.product-alias').create({
+    data: {
+      alternativeName: itemName,
+      ntin: ntin || null,
+      verificationStatus: defaultStatusForNew,
+      product: { documentId: product.documentId },
+    },
+  });
+}
+
 async function processClaimedItem(itemName: string, props: any, product: any, ntin?: string | null) {
   let verificationStatus = 'manual_review';
   let productAlias = null;
 
-  if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
+  // NTIN is compared against the catalog product's own ntin/ntinAlternative
+  // fields (deliberately entered by an admin), not against a
+  // previously-approved alias — a careless click approving one alias would
+  // otherwise silently auto-trust every future receipt carrying that NTIN.
+  const catalogNtins = [product.ntin, product.ntinAlternative].filter(Boolean);
+
+  if (catalogNtins.length > 0 && ntin) {
+    if (catalogNtins.includes(ntin)) {
+      // Confident match — record it for audit, but no admin review needed.
+      verificationStatus = 'auto_verified_ntin';
+      const alias = await findOrCreateAliasByName(itemName, ntin, product, 'verified');
+      productAlias = { documentId: alias.documentId };
+    } else {
+      // NTIN present on both sides but they disagree — never auto-reject,
+      // always route to manual_review so an admin compares by eye,
+      // regardless of whether the name would otherwise auto-match.
+      verificationStatus = 'manual_review';
+      const alias = await findOrCreateAliasByName(itemName, ntin, product, 'unverified');
+      productAlias = { documentId: alias.documentId };
+    }
+  } else if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
     verificationStatus = 'auto_verified_canon';
   } else {
     const productAliases = product.productAliases || [];
-
-    // NTIN is a stable per-product code printed on the receipt — prefer
-    // matching by it over the free-text name, which varies by wording,
-    // abbreviation, spacing, etc. across different kassa printers. Falls
-    // back to name matching when the receipt didn't carry an NTIN or no
-    // alias has been linked to it yet.
-    const matchingAlias =
-      (ntin && productAliases.find((alias: any) => alias.ntin === ntin)) ||
-      productAliases.find(
-        (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-      );
+    const matchingAlias = productAliases.find(
+      (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+    );
 
     if (matchingAlias) {
       if (matchingAlias.verificationStatus === 'verified') {

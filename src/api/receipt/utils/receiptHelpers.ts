@@ -733,7 +733,7 @@ export const calculateFinalCashback = (items: any[]): number => {
     return items.reduce((total, item) => {
         if (
             item.__component === 'receipt-item.item' &&
-            ['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(item.verificationStatus)
+            ['auto_verified_canon', 'auto_verified_alias', 'auto_verified_ntin', 'manually_verified_alias'].includes(item.verificationStatus)
         ) {
             const quantity = item.props?.quantity || 1
             return total + ((item.cashback || 0) * quantity)

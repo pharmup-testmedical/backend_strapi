@@ -38,12 +38,22 @@ export async function updateReceiptStatus(receipt: Receipt, strapi: any): Promis
 
                 const cashbackItem = item as CashbackItem;
 
-                // Skip items that don't need alias-based updates
+                // Skip items that don't need alias-based updates. NTIN
+                // matches are resolved against the catalog product's own
+                // ntin/ntinAlternative at submission time, not against this
+                // alias's own verificationStatus, so they must not be
+                // re-evaluated (and potentially downgraded back to
+                // manual_review) just because some other item in the same
+                // receipt has its alias reviewed.
                 if (
                     cashbackItem.verificationStatus === 'auto_verified_canon' ||
+                    cashbackItem.verificationStatus === 'auto_verified_ntin' ||
                     !cashbackItem.productAlias
                 ) {
-                    if (cashbackItem.verificationStatus === 'auto_verified_canon') {
+                    if (
+                        cashbackItem.verificationStatus === 'auto_verified_canon' ||
+                        cashbackItem.verificationStatus === 'auto_verified_ntin'
+                    ) {
                         hasVerified = true;
                     }
                     return cashbackItem;
