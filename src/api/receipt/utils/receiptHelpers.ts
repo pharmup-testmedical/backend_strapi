@@ -427,11 +427,19 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         }
 
         if ((text.includes('УАҚЫТЫ') || text.includes('ВРЕМЯ')) && !result.date) {
-            const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2})/)
+            // Day/month/hour are sometimes printed without a leading zero
+            // (e.g. "16.07.2026 8:37:21"), so each component is 1-2 digits.
+            // Date's constructor requires zero-padded ISO components, so
+            // pad each piece back out before building the string, rather
+            // than relying on the (unreliable/engine-dependent) parsing of
+            // a non-padded "T8:37:21" time.
+            const dateMatch = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/)
             if (dateMatch) {
-                const [day, month, year] = dateMatch[1].split(' ')[0].split('.')
-                const time = dateMatch[1].split(' ')[1]
-                result.date = new Date(`${year}-${month}-${day}T${time}`)
+                const [, day, month, year, hour, minute, second] = dateMatch
+                const pad = (n: string) => n.padStart(2, '0')
+                result.date = new Date(
+                    `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`
+                )
             }
         }
 
@@ -579,11 +587,19 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         }
 
         if ((text.includes('УАҚЫТЫ') || text.includes('ВРЕМЯ')) && !result.date) {
-            const dateMatch = text.match(/(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2})/)
+            // Day/month/hour are sometimes printed without a leading zero
+            // (e.g. "16.07.2026 8:37:21"), so each component is 1-2 digits.
+            // Date's constructor requires zero-padded ISO components, so
+            // pad each piece back out before building the string, rather
+            // than relying on the (unreliable/engine-dependent) parsing of
+            // a non-padded "T8:37:21" time.
+            const dateMatch = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/)
             if (dateMatch) {
-                const [day, month, year] = dateMatch[1].split(' ')[0].split('.')
-                const time = dateMatch[1].split(' ')[1]
-                result.date = new Date(`${year}-${month}-${day}T${time}`)
+                const [, day, month, year, hour, minute, second] = dateMatch
+                const pad = (n: string) => n.padStart(2, '0')
+                result.date = new Date(
+                    `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`
+                )
             }
         }
 
