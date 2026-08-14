@@ -390,8 +390,33 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
     // a price line is reached, so multi-line product names are captured in full.
     let pendingNameLines: string[] = []
 
+    // "Маркировка" (product track-and-trace) codes print as a "M:[...]"
+    // block that can span multiple lines of base64-like garbage before
+    // closing with "]" — sometimes the closing "]" shares a line with the
+    // tail end of the product name (e.g. "...hhvO2SYQ=]LIFE"). Everything
+    // between "M:[" and "]" is stripped out of the name buffer entirely.
+    let inMarkingBlock = false
+
     for (let i = 0; i < textLines.length; i++) {
-        const text = textLines[i].trim()
+        let text = textLines[i].trim()
+
+        if (inMarkingBlock) {
+            const closeIdx = text.indexOf(']')
+            if (closeIdx === -1) {
+                continue
+            }
+            text = text.slice(closeIdx + 1).trim()
+            inMarkingBlock = false
+        } else if (text.startsWith('M:[')) {
+            const closeIdx = text.indexOf(']')
+            if (closeIdx === -1) {
+                inMarkingBlock = true
+                continue
+            }
+            text = text.slice(closeIdx + 1).trim()
+        }
+
+        if (!text) continue
 
         if ((text.includes('ФИСКАЛДЫҚ БЕЛГІ') || text.includes('ФИСКАЛЬНЫЙ ПРИЗНАК')) && !result.fiscalId) {
             const fiscalMatch = text.match(/(\d{12,})/)
@@ -450,14 +475,18 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         // accumulated in the buffer since the previous item/boundary line.
         // Unit wording (Штука, Упаковка, etc.) varies by product/KKM, so the
         // check below only requires the surrounding "qty (unit) x ... = ..."
-        // structure, not a specific unit word.
-        if (/\(\S[^)]*\)\s*x\s*[\d ,.]+₸\s*=\s*[\d ,.]+₸/.test(text)) {
-            const itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d ,.]+)₸\s+=\s+([\d ,.]+)₸/)
+        // structure, not a specific unit word. Amounts of 1000+ are printed
+        // with a non-breaking space (U+00A0) as the thousands separator, so
+        // the digit/separator class uses \s (which matches NBSP), not a
+        // literal space — otherwise any item priced >= 1000 silently fails
+        // to match and gets dropped instead of parsed.
+        if (/\(\S[^)]*\)\s*x\s*[\d\s,.]+₸\s*=\s*[\d\s,.]+₸/.test(text)) {
+            const itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,.]+)₸\s+=\s+([\d\s,.]+)₸/)
             const productName = pendingNameLines.join(' ').trim()
             if (itemMatch && productName) {
                 const quantity = parseInt(itemMatch[1])
-                const unitPrice = parseFloat(itemMatch[2].replace(',', '.'))
-                const totalPrice = parseFloat(itemMatch[3].replace(',', '.'))
+                const unitPrice = parseKazakhNumber(itemMatch[2])
+                const totalPrice = parseKazakhNumber(itemMatch[3])
 
                 if (!isNaN(quantity) && !isNaN(unitPrice) && !isNaN(totalPrice)) {
                     result.items.push({
