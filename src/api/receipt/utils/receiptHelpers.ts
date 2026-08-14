@@ -373,6 +373,43 @@ const parseWofdTextData = async (data: any, apiUrl: string, strapi: any) => {
     }
 }
 
+// Receipt printers wrap each line to a fixed character width and just cut
+// text off wherever it runs out of room — there's no hyphen or other marker
+// for a word broken mid-way (e.g. "...уровня глю" / "козы в крови" is really
+// "...уровня глюкозы в крови"). Two signals distinguish a hard mid-word cut
+// from a genuine word boundary:
+//   1. If the continuation line has a leading space in its raw (untrimmed)
+//      form, a space genuinely existed at the break — e.g. "...В ИНД УП  "
+//      then " 100МЛ(Уп)" (note the leading space) really is "...УП 100МЛ".
+//      This is the more reliable signal where it's available.
+//   2. Otherwise, fall back to how much unused width the previous line had:
+//      a line that used up (almost) its full width was cut off with no
+//      room for a trailing space, so it's glued directly to the next line;
+//      a line with more than a couple of characters to spare ended there
+//      naturally (the next whole word just didn't fit) and keeps its space.
+const MAX_TRAILING_SLACK_FOR_WRAP = 2
+
+const wasLineFull = (rawLine: string): boolean =>
+    rawLine.length - rawLine.trimEnd().length <= MAX_TRAILING_SLACK_FOR_WRAP
+
+const hasLeadingSpace = (rawLine: string): boolean =>
+    rawLine.length !== rawLine.trimStart().length
+
+const joinWrappedNameLines = (
+    lines: { text: string; wasFull: boolean; hasLeadingSpace: boolean }[]
+): string =>
+    lines
+        .reduce((acc, line, idx) => {
+            if (idx === 0) return line.text
+            const glue = line.hasLeadingSpace
+                ? ' '
+                : lines[idx - 1].wasFull
+                ? ''
+                : ' '
+            return acc + glue + line.text
+        }, '')
+        .trim()
+
 const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
     const result: any = {
         fiscalId: '',
@@ -389,7 +426,7 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
     // Lines that are not part of a product name (receipt metadata, separators,
     // price lines) reset this buffer; everything else accumulates into it until
     // a price line is reached, so multi-line product names are captured in full.
-    let pendingNameLines: string[] = []
+    let pendingNameLines: { text: string; wasFull: boolean; hasLeadingSpace: boolean }[] = []
 
     // "Маркировка" (product track-and-trace) codes print as a "M:[...]"
     // block that can span multiple lines of base64-like garbage before
@@ -399,7 +436,10 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
     let inMarkingBlock = false
 
     for (let i = 0; i < textLines.length; i++) {
-        let text = textLines[i].trim()
+        const rawLine = textLines[i]
+        let text = rawLine.trim()
+        const lineWasFull = wasLineFull(rawLine)
+        const lineHasLeadingSpace = hasLeadingSpace(rawLine)
 
         if (inMarkingBlock) {
             const closeIdx = text.indexOf(']')
@@ -491,7 +531,7 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         // to match and gets dropped instead of parsed.
         if (/\(\S[^)]*\)\s*x\s*[\d\s,.]+₸\s*=\s*[\d\s,.]+₸/.test(text)) {
             const itemMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,.]+)₸\s+=\s+([\d\s,.]+)₸/)
-            const productName = pendingNameLines.join(' ').trim()
+            const productName = joinWrappedNameLines(pendingNameLines)
             if (itemMatch && productName) {
                 const quantity = parseInt(itemMatch[1])
                 const unitPrice = parseKazakhNumber(itemMatch[2])
@@ -543,7 +583,7 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         if (isBoundaryLine) {
             pendingNameLines = []
         } else {
-            pendingNameLines.push(text)
+            pendingNameLines.push({ text, wasFull: lineWasFull, hasLeadingSpace: lineHasLeadingSpace })
         }
     }
 
@@ -574,10 +614,13 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
     // Lines that are not part of a product name (receipt metadata, separators,
     // price lines) reset this buffer; everything else accumulates into it until
     // a price line is reached, so multi-line product names are captured in full.
-    let pendingNameLines: string[] = []
+    let pendingNameLines: { text: string; wasFull: boolean; hasLeadingSpace: boolean }[] = []
 
     for (let i = 0; i < textLines.length; i++) {
-        const text = textLines[i].trim()
+        const rawLine = textLines[i]
+        const text = rawLine.trim()
+        const lineWasFull = wasLineFull(rawLine)
+        const lineHasLeadingSpace = hasLeadingSpace(rawLine)
 
         if ((text.includes('Фискалдық белгі') || text.includes('Фискальный признак')) && !result.fiscalId) {
             const fiscalMatch = text.match(/(\d{12,})/)
@@ -656,7 +699,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         const priceLineMatch = text.match(/(\d+)\s+\([^)]+\)\s+x\s+([\d\s,]+)₸\s+=\s+([\d\s,]+)₸/)
 
         if (priceLineMatch) {
-            const productName = pendingNameLines.join(' ').trim()
+            const productName = joinWrappedNameLines(pendingNameLines)
             if (productName) {
                 const quantity = parseInt(priceLineMatch[1])
                 const unitPrice = parseKazakhNumber(priceLineMatch[2].trim())
@@ -715,7 +758,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         if (isBoundaryLine) {
             pendingNameLines = []
         } else {
-            pendingNameLines.push(text)
+            pendingNameLines.push({ text, wasFull: lineWasFull, hasLeadingSpace: lineHasLeadingSpace })
         }
     }
 
