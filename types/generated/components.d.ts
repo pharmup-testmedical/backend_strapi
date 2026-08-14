@@ -92,6 +92,7 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
       [
         'auto_verified_canon',
         'auto_verified_alias',
+        'auto_verified_ntin',
         'auto_rejected_alias',
         'manual_review',
         'manually_verified_alias',

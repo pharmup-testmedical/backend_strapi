@@ -669,6 +669,10 @@ export interface ApiProductAliasProductAlias
       'api::product-alias.product-alias'
     > &
       Schema.Attribute.Private;
+    ntin: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        index: true;
+      }>;
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
@@ -694,6 +698,12 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    barcode: Schema.Attribute.String &
+      Schema.Attribute.Unique &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 13;
+        minLength: 13;
+      }>;
     brand: Schema.Attribute.Relation<'manyToOne', 'api::brand.brand'>;
     canonicalName: Schema.Attribute.String &
       Schema.Attribute.Required &
@@ -716,6 +726,18 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'api::product.product'
     > &
       Schema.Attribute.Private;
+    ntin: Schema.Attribute.String &
+      Schema.Attribute.Unique &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 13;
+        minLength: 13;
+      }>;
+    ntinAlternative: Schema.Attribute.String &
+      Schema.Attribute.Unique &
+      Schema.Attribute.SetMinMaxLength<{
+        maxLength: 13;
+        minLength: 13;
+      }>;
     productAliases: Schema.Attribute.Relation<
       'oneToMany',
       'api::product-alias.product-alias'
