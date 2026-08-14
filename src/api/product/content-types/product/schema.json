@@ -26,6 +26,15 @@
       "regex": "^\\d{13}$",
       "displayName": "Barcode (EAN-13)"
     },
+    "ntin": {
+      "type": "string",
+      "required": false,
+      "unique": true,
+      "minLength": 13,
+      "maxLength": 13,
+      "regex": "^\\d{13}$",
+      "displayName": "NTIN"
+    },
     "cashbackEligible": {
       "type": "boolean",
       "default": false,

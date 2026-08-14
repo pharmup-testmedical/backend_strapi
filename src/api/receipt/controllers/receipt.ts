@@ -351,7 +351,7 @@ async function processReceiptItems(
         throw new Error(`Продукт с documentId ${productId} не найден`);
       }
 
-      const cashbackItem = await processClaimedItem(itemName, props, product);
+      const cashbackItem = await processClaimedItem(itemName, props, product, itemData.ntin);
 
       if (['auto_verified_canon', 'auto_verified_alias', 'manually_verified_alias'].includes(cashbackItem.verificationStatus)) {
         hasVerified = true;
@@ -368,7 +368,7 @@ async function processReceiptItems(
   return { items, hasVerified, hasRejected, hasNonVerified };
 }
 
-async function processClaimedItem(itemName: string, props: any, product: any) {
+async function processClaimedItem(itemName: string, props: any, product: any, ntin?: string | null) {
   let verificationStatus = 'manual_review';
   let productAlias = null;
 
@@ -376,9 +376,17 @@ async function processClaimedItem(itemName: string, props: any, product: any) {
     verificationStatus = 'auto_verified_canon';
   } else {
     const productAliases = product.productAliases || [];
-    const matchingAlias = productAliases.find(
-      (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-    );
+
+    // NTIN is a stable per-product code printed on the receipt — prefer
+    // matching by it over the free-text name, which varies by wording,
+    // abbreviation, spacing, etc. across different kassa printers. Falls
+    // back to name matching when the receipt didn't carry an NTIN or no
+    // alias has been linked to it yet.
+    const matchingAlias =
+      (ntin && productAliases.find((alias: any) => alias.ntin === ntin)) ||
+      productAliases.find(
+        (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+      );
 
     if (matchingAlias) {
       if (matchingAlias.verificationStatus === 'verified') {
@@ -394,6 +402,7 @@ async function processClaimedItem(itemName: string, props: any, product: any) {
       const newAlias = await strapi.documents('api::product-alias.product-alias').create({
         data: {
           alternativeName: itemName,
+          ntin: ntin || null,
           verificationStatus: 'unverified',
           product: { documentId: product.documentId },
         },

@@ -153,6 +153,7 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                             ? data.measureUnits?.[commodity.measureUnitCode] || 'unit'
                             : 'unit',
                         totalPrice: (commodity.sum || 0) - discount,
+                        ntin: commodity.ntin || null,
                     }
                     if (
                         !itemData.name ||
@@ -495,12 +496,23 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
                         unitPrice: Math.round(unitPrice),
                         quantity: quantity,
                         measureUnit: 'штука',
-                        totalPrice: Math.round(totalPrice)
+                        totalPrice: Math.round(totalPrice),
+                        ntin: null,
                     })
                 }
             }
             pendingNameLines = []
             continue
+        }
+
+        // NTIN is printed on its own line *after* the item's price line (so
+        // the item is already in result.items by the time we see it) — it
+        // belongs to whichever item was most recently pushed.
+        if (text.includes('NTIN')) {
+            const ntinMatch = text.match(/NTIN:\s*(\d+)/)
+            if (ntinMatch && result.items.length > 0) {
+                result.items[result.items.length - 1].ntin = ntinMatch[1]
+            }
         }
 
         // Any receipt metadata/separator line ends the current product name buffer.
@@ -641,12 +653,23 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                         unitPrice: Math.round(unitPrice),
                         quantity: quantity,
                         measureUnit: 'штука',
-                        totalPrice: Math.round(totalPrice)
+                        totalPrice: Math.round(totalPrice),
+                        ntin: null,
                     })
                 }
             }
             pendingNameLines = []
             continue
+        }
+
+        // NTIN is printed on its own line *after* the item's price line (so
+        // the item is already in result.items by the time we see it) — it
+        // belongs to whichever item was most recently pushed.
+        if (text.includes('NTIN')) {
+            const ntinMatch = text.match(/NTIN:\s*(\d+)/)
+            if (ntinMatch && result.items.length > 0) {
+                result.items[result.items.length - 1].ntin = ntinMatch[1]
+            }
         }
 
         // Any receipt metadata/separator line ends the current product name buffer.

@@ -40,7 +40,7 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                         fields: ['url', 'name', 'alternativeText'],
                     },
                 },
-                fields: ['id', 'canonicalName', 'barcode', 'cashbackEligible', 'cashbackAmount', 'unpublishDate'],
+                fields: ['id', 'canonicalName', 'barcode', 'ntin', 'cashbackEligible', 'cashbackAmount', 'unpublishDate'],
                 publicationState: 'live',
             });
 
