@@ -1,5 +1,6 @@
 import type { Core } from '@strapi/strapi';
 import { generateUniqueReferralCode } from './utils/generate-referral-code';
+import { calculateUserBalance } from './utils/calculate-user-balance';
 // import {
 //   registerProductAliasMiddleware,
 //   registerAliasVerifierMiddleware
@@ -99,7 +100,37 @@ export default {
 
           strapi.log.warn(`Used fallback code ${fallbackCode} for user ${result.id}`);
         }
-      }
+      },
+
+      // "account" не свободно редактируемое поле, а сумма кэшбэка по
+      // чекам + заданиям + тестам минус одобренные выводы (см.
+      // calculateUserBalance). Раньше его можно было просто вписать
+      // руками в админке (или задать багом/скриптом) в обход этой
+      // логики — теперь при любом сохранении пользователя значение
+      // принудительно пересчитывается из реальных данных, что бы ни
+      // было передано в запросе.
+      async beforeUpdate(event) {
+        const { data, where } = event.params;
+
+        if (data.account === undefined) return;
+
+        const currentUser = await strapi.db.query('plugin::users-permissions.user').findOne({
+          where: { id: where.id },
+          select: ['id', 'documentId'],
+        });
+
+        if (!currentUser?.documentId) return;
+
+        const correctBalance = await calculateUserBalance(currentUser.documentId);
+
+        if (Number(data.account) !== correctBalance) {
+          strapi.log.warn(
+            `[Balance Guard] Попытка записать account=${data.account} для пользователя ${currentUser.documentId} (id=${currentUser.id}) — заменено на рассчитанное значение ${correctBalance}`
+          );
+        }
+
+        data.account = correctBalance;
+      },
     });
 
     strapi.log.info('User lifecycles registered successfully');

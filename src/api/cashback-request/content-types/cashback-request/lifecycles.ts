@@ -53,5 +53,24 @@ export default {
         } catch (error) {
             strapi.log.error('Ошибка отправки уведомления администратору:', error.message);
         }
+    },
+
+    // Запись удаляется до срабатывания afterDelete, поэтому владельца
+    // нужно запомнить заранее в beforeDelete через event.state — иначе
+    // удаление одобренной заявки в админке не пересчитает баланс.
+    async beforeDelete(event: any) {
+        const { where } = event.params;
+        const record = await strapi.db.query('api::cashback-request.cashback-request').findOne({
+            where,
+            populate: ['requester']
+        });
+        event.state = { userDocumentId: record?.requester?.documentId };
+    },
+
+    async afterDelete(event: any) {
+        const userDocumentId = event.state?.userDocumentId;
+        if (userDocumentId) {
+            await updateUserBalance(userDocumentId);
+        }
     }
 };

@@ -13,6 +13,25 @@ export default {
     const { result } = event;
     await handleReceiptLifecycle(result);
   },
+
+  // Запись удаляется до срабатывания afterDelete, поэтому владельца
+  // нужно запомнить заранее в beforeDelete через event.state — иначе
+  // удаление подтверждённого чека в админке не пересчитает баланс.
+  async beforeDelete(event: any) {
+    const { where } = event.params;
+    const record = await strapi.db.query('api::receipt.receipt').findOne({
+      where,
+      populate: ['user'],
+    });
+    event.state = { userDocumentId: record?.user?.documentId };
+  },
+
+  async afterDelete(event: any) {
+    const userDocumentId = event.state?.userDocumentId;
+    if (userDocumentId) {
+      await updateUserBalance(userDocumentId);
+    }
+  },
 };
 
 async function handleReceiptLifecycle(result: any) {
