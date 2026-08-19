@@ -161,6 +161,21 @@ export interface SettingsPromo extends Struct.ComponentSchema {
   };
 }
 
+export interface SettingsSupport extends Struct.ComponentSchema {
+  collectionName: 'components_settings_supports';
+  info: {
+    description: '';
+    displayName: '\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430';
+  };
+  attributes: {
+    responseTimeText: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'~15 \u043C\u0438\u043D\u0443\u0442'>;
+    telegramLink: Schema.Attribute.String;
+    workingHoursText: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'\u041F\u043D\u2013\u041F\u0442, 9:00\u201318:00'>;
+  };
+}
+
 export interface TasksOtskanirujtePervyeCheki extends Struct.ComponentSchema {
   collectionName: 'components_tasks_otskanirujte_pervye_cheki';
   info: {
@@ -284,6 +299,7 @@ declare module '@strapi/strapi' {
       'receipt-item.product-claim': ReceiptItemProductClaim;
       'settings.banking': SettingsBanking;
       'settings.promo': SettingsPromo;
+      'settings.support': SettingsSupport;
       'tasks.otskanirujte-pervye-cheki': TasksOtskanirujtePervyeCheki;
       'tasks.postavit-oczenku': TasksPostavitOczenku;
       'tasks.priglashenie-kolleg': TasksPriglashenieKolleg;

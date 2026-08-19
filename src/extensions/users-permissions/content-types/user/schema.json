@@ -131,6 +131,10 @@
       "type": "string",
       "required": false,
       "unique": true
+    },
+    "phone": {
+      "type": "string",
+      "required": false
     }
   }
 }

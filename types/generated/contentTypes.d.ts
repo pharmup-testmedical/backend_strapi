@@ -598,6 +598,36 @@ export interface ApiCompletedTestCompletedTest
   };
 }
 
+export interface ApiFaqFaq extends Struct.CollectionTypeSchema {
+  collectionName: 'faqs';
+  info: {
+    description: '';
+    displayName: '\u0412\u043E\u043F\u0440\u043E\u0441-\u043E\u0442\u0432\u0435\u0442 (FAQ)';
+    pluralName: 'faqs';
+    singularName: 'faq';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    answer: Schema.Attribute.Text & Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::faq.faq'> &
+      Schema.Attribute.Private;
+    order: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
+    publishedAt: Schema.Attribute.DateTime;
+    question: Schema.Attribute.Text & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
   collectionName: 'main_pages';
   info: {
@@ -995,6 +1025,7 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
     promo: Schema.Attribute.Component<'settings.promo', false> &
       Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
+    support: Schema.Attribute.Component<'settings.support', false>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1499,6 +1530,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    phone: Schema.Attribute.String;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
@@ -1547,6 +1579,7 @@ declare module '@strapi/strapi' {
       'api::city.city': ApiCityCity;
       'api::completed-task.completed-task': ApiCompletedTaskCompletedTask;
       'api::completed-test.completed-test': ApiCompletedTestCompletedTest;
+      'api::faq.faq': ApiFaqFaq;
       'api::main-page.main-page': ApiMainPageMainPage;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;

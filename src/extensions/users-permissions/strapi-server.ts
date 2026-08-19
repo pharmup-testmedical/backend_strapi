@@ -217,6 +217,96 @@ export default (plugin) => {
             );
 
             ctx.body = { success: true };
+        },
+
+        async updateMyProfile(ctx: Context) {
+            const user = ctx.state.user;
+            if (!user) {
+                return ctx.unauthorized('Пользователь не авторизован');
+            }
+
+            const { name, surname, phone } = ctx.request.body as {
+                name?: string;
+                surname?: string;
+                phone?: string;
+            };
+
+            const data: Record<string, string> = {};
+
+            if (name !== undefined) {
+                const trimmedName = typeof name === 'string' ? name.trim() : '';
+                if (!trimmedName) {
+                    return ctx.badRequest('Имя не может быть пустым');
+                }
+                data.name = trimmedName;
+            }
+
+            if (surname !== undefined) {
+                const trimmedSurname = typeof surname === 'string' ? surname.trim() : '';
+                if (!trimmedSurname) {
+                    return ctx.badRequest('Фамилия не может быть пустой');
+                }
+                data.surname = trimmedSurname;
+            }
+
+            if (phone !== undefined) {
+                data.phone = typeof phone === 'string' ? phone.trim() : '';
+            }
+
+            await strapi.entityService.update(
+                'plugin::users-permissions.user',
+                user.id,
+                { data }
+            );
+
+            ctx.body = { success: true };
+        },
+
+        async changePassword(ctx: Context) {
+            const user = ctx.state.user;
+            if (!user) {
+                return ctx.unauthorized('Пользователь не авторизован');
+            }
+
+            const { currentPassword, newPassword } = ctx.request.body as {
+                currentPassword?: string;
+                newPassword?: string;
+            };
+
+            if (!currentPassword || !newPassword) {
+                return ctx.badRequest('Требуется указать текущий и новый пароль');
+            }
+
+            if (newPassword.length < 8) {
+                return ctx.badRequest('Новый пароль должен содержать минимум 8 символов');
+            }
+
+            if (newPassword === currentPassword) {
+                return ctx.badRequest('Новый пароль должен отличаться от текущего');
+            }
+
+            const userService = strapi.plugin('users-permissions').service('user');
+
+            const userWithPassword = await strapi
+                .query('plugin::users-permissions.user')
+                .findOne({ where: { id: user.id }, select: ['id', 'password'] });
+
+            if (!userWithPassword) {
+                return ctx.badRequest('Пользователь не найден');
+            }
+
+            const isValid = await userService.validatePassword(
+                currentPassword,
+                userWithPassword.password
+            );
+
+            if (!isValid) {
+                return ctx.badRequest('Неверный текущий пароль');
+            }
+
+            await userService.edit(user.id, { password: newPassword });
+
+            ctx.body = { success: true };
         }
     };
 
@@ -262,6 +352,28 @@ export default (plugin) => {
         config: {
             auth: {
                 scope: ['plugin::users-permissions.custom.updateMyIin'],
+            },
+        },
+    });
+
+    plugin.routes['content-api'].routes.push({
+        method: 'PUT',
+        path: '/me/profile',
+        handler: 'custom.updateMyProfile',
+        config: {
+            auth: {
+                scope: ['plugin::users-permissions.custom.updateMyProfile'],
+            },
+        },
+    });
+
+    plugin.routes['content-api'].routes.push({
+        method: 'PUT',
+        path: '/me/change-password',
+        handler: 'custom.changePassword',
+        config: {
+            auth: {
+                scope: ['plugin::users-permissions.custom.changePassword'],
             },
         },
     });

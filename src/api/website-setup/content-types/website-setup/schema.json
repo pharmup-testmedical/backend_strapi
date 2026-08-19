@@ -25,6 +25,13 @@
       "component": "settings.banking",
       "required": true
     },
+    "support": {
+      "displayName": "support",
+      "type": "component",
+      "repeatable": false,
+      "component": "settings.support",
+      "required": false
+    },
     "adminNotificationEmail": {
       "type": "email",
       "private": true
