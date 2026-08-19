@@ -147,8 +147,14 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
   const {
     qrData,
     itemMappings,
-    ofdType = 'oofd'
+    ofdType = 'oofd',
+    platform
   } = ctx.request.body;
+
+  // Разрешаем только известные значения — если приложение прислало что-то
+  // неожиданное (или ничего не прислало, как старые версии до этого
+  // обновления), просто не сохраняем платформу, а не роняем весь чек.
+  ctx.request.body.platform = ['ios', 'android'].includes(platform) ? platform : null;
 
   if (!qrData || typeof qrData !== 'string') throw new Error('QR-код обязателен');
   if (!itemMappings || typeof itemMappings !== 'object' || Object.keys(itemMappings).length === 0) {
@@ -228,6 +234,7 @@ async function processAndCreateReceipt(
       items: JSON.parse(JSON.stringify(items)),
       finalCashback,
       countsForScanTask: isForTask,
+      platform: context.ctx.request.body.platform,
       publishedAt: new Date()
     }
   });
@@ -499,6 +506,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       ofdType: receiptData.ofdType,
       items,
       finalCashback,
+      platform: ctx.request.body.platform,
     }
   });
 }

@@ -878,6 +878,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     oofd_uid: Schema.Attribute.String & Schema.Attribute.Unique;
     paymentMethod: Schema.Attribute.String & Schema.Attribute.Required;
+    platform: Schema.Attribute.Enumeration<['ios', 'android']>;
     publishedAt: Schema.Attribute.DateTime;
     qrData: Schema.Attribute.String &
       Schema.Attribute.Required &

@@ -96,6 +96,14 @@
     "countsForScanTask": {
       "type": "boolean",
       "default": false
+    },
+    "platform": {
+      "type": "enumeration",
+      "enum": [
+        "ios",
+        "android"
+      ],
+      "required": false
     }
   }
 }
