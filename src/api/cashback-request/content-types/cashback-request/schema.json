@@ -34,6 +34,17 @@
     },
     "rejectionReason": {
       "type": "text"
+    },
+    "payoutMethod": {
+      "type": "enumeration",
+      "enum": [
+        "kaspi",
+        "card"
+      ]
+    },
+    "payoutDestination": {
+      "type": "string",
+      "description": "Номер телефона Kaspi или номер карты — куда фактически перевести средства"
     }
   }
 }

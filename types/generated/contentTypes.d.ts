@@ -422,6 +422,8 @@ export interface ApiCashbackRequestCashbackRequest
       'api::cashback-request.cashback-request'
     > &
       Schema.Attribute.Private;
+    payoutDestination: Schema.Attribute.String;
+    payoutMethod: Schema.Attribute.Enumeration<['kaspi', 'card']>;
     publishedAt: Schema.Attribute.DateTime;
     rejectionReason: Schema.Attribute.Text;
     requester: Schema.Attribute.Relation<
