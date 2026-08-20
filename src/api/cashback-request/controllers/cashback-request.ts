@@ -49,10 +49,11 @@ export default factories.createCoreController(
 
                 // ===================================================
 
-                let { amount, payoutMethod, payoutDestination } = ctx.request.body as {
+                let { amount, payoutMethod, payoutDestination, comment } = ctx.request.body as {
                     amount: number | string
                     payoutMethod?: string
                     payoutDestination?: string
+                    comment?: string
                 }
                 amount = typeof amount === 'string' ? Number(amount) : amount
 
@@ -74,6 +75,8 @@ export default factories.createCoreController(
                 if (payoutMethod === 'card' && (destinationDigits.length < 13 || destinationDigits.length > 19)) {
                     throw new Error('Укажите корректный номер карты')
                 }
+
+                const trimmedComment = (comment || '').trim().slice(0, 500)
 
                 strapi.log.info(`Requested cashback amount: ${amount}`)
 
@@ -129,7 +132,8 @@ export default factories.createCoreController(
                             amount,
                             verificationStatus: 'pending',
                             payoutMethod: payoutMethod as 'kaspi' | 'card',
-                            payoutDestination: trimmedDestination
+                            payoutDestination: trimmedDestination,
+                            comment: trimmedComment || undefined
                         }
                     })
 

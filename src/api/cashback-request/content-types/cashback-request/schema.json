@@ -45,6 +45,10 @@
     "payoutDestination": {
       "type": "string",
       "description": "Номер телефона Kaspi или номер карты — куда фактически перевести средства"
+    },
+    "comment": {
+      "type": "text",
+      "description": "Комментарий пользователя к заявке на вывод"
     }
   }
 }

@@ -413,6 +413,7 @@ export interface ApiCashbackRequestCashbackRequest
   };
   attributes: {
     amount: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    comment: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
