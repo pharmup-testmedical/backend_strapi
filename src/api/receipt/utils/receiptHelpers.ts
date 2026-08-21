@@ -378,11 +378,9 @@ const parseWofdTextData = async (data: any, apiUrl: string, strapi: any) => {
         kktSerialNumber: extractedData.kktSerialNumber,
         paymentMethod: extractedData.paymentMethod,
         items: extractedData.items,
-        // WOFD пока без реального примера — поля не заполняются, чтобы не
-        // угадывать формат.
-        organizationName: null,
-        organizationBin: null,
-        organizationAddress: null,
+        organizationName: extractedData.organizationName,
+        organizationBin: extractedData.organizationBin,
+        organizationAddress: extractedData.organizationAddress,
     }
 }
 
@@ -641,7 +639,10 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         kktSerialNumber: '',
         taxAmount: 0,
         taxRate: 0,
-        paymentMethod: ''
+        paymentMethod: '',
+        organizationName: null,
+        organizationBin: null,
+        organizationAddress: null,
     }
 
     // Lines that are not part of a product name (receipt metadata, separators,
@@ -649,11 +650,59 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
     // a price line is reached, so multi-line product names are captured in full.
     let pendingNameLines: { text: string; wasFull: boolean; hasLeadingSpace: boolean }[] = []
 
+    // Адрес точки продажи печатается дважды (казахская, затем русская версия)
+    // между строкой ИТОГО и строками "ФДО:"/"ОФД:", каждая версия может
+    // переноситься на несколько строк. Собираем всё в этом окне, а затем
+    // берём последний блок, начинающийся с типа населённого пункта (город/
+    // село/посёлок/аул) — это всегда финальная (русская) версия; если обе
+    // версии совпадают дословно (нет отдельного казахского перевода для
+    // конкретного адреса), последний блок и первый всё равно совпадают.
+    const LOCALITY_PREFIX = /^(г|с|п|а)\.\s?[А-ЯЁ]/
+    let totalsLineIndex = -1
+    let addressExtracted = false
+    let organizationAddressLines: string[] = []
+
     for (let i = 0; i < textLines.length; i++) {
         const rawLine = textLines[i]
         const text = rawLine.trim()
         const lineWasFull = wasLineFull(rawLine)
         const lineHasLeadingSpace = hasLeadingSpace(rawLine)
+
+        // Название организации — самая первая непустая строка чека, БИН —
+        // следующая строка с меткой БСН/БИН (тот же формат, что и у KOFD).
+        if (text && result.organizationName === null) {
+            result.organizationName = text
+        }
+        if ((text.includes('БСН') || text.includes('БИН')) && !result.organizationBin) {
+            const binMatch = text.match(/(\d{10,12})/)
+            if (binMatch) {
+                result.organizationBin = binMatch[1]
+            }
+        }
+
+        if (totalsLineIndex !== -1 && i > totalsLineIndex && !addressExtracted) {
+            if (text.startsWith('ФДО') || text.startsWith('ОФД')) {
+                let ruStartIdx = -1
+                for (let j = organizationAddressLines.length - 1; j >= 0; j--) {
+                    if (LOCALITY_PREFIX.test(organizationAddressLines[j])) {
+                        ruStartIdx = j
+                        break
+                    }
+                }
+                if (ruStartIdx !== -1) {
+                    // В отличие от названий товаров, сегменты адреса всегда
+                    // разделены запятой/пробелом на исходном чеке — печатная
+                    // ширина строки (48 символов) регулярно оставляет ровно
+                    // 1 символ запаса, из-за чего эвристика "было ли слово
+                    // обрезано впритык" для товаров здесь иногда ошибается.
+                    // Простое склеивание через пробел надёжнее для адреса.
+                    result.organizationAddress = organizationAddressLines.slice(ruStartIdx).join(' ')
+                }
+                addressExtracted = true
+            } else if (text.length > 0 && !/^[*\-=_~]+$/.test(text)) {
+                organizationAddressLines.push(text)
+            }
+        }
 
         if ((text.includes('Фискалдық белгі') || text.includes('Фискальный признак')) && !result.fiscalId) {
             const fiscalMatch = text.match(/(\d{12,})/)
@@ -680,6 +729,7 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         }
 
         if ((text.includes('БАРЛЫҒЫ') || text.includes('ИТОГО')) && result.totalAmount === 0) {
+            totalsLineIndex = i
             let amountMatch = text.match(/([\d\s,]+)₸/)
 
             if (!amountMatch && i + 1 < textLines.length) {
