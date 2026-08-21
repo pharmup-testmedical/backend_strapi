@@ -3,6 +3,7 @@
  */
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
+import { syncReceiptToSheet } from '../../../utils/google-sheets-sync'
 
 // ==================== EXPORTED TYPES ====================
 export type ReceiptVerificationStatus =
@@ -191,7 +192,19 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
     products
   );
 
-  return await processAndCreateReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified, isForTask);
+  const result = await processAndCreateReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified, isForTask);
+
+  await syncReceiptToSheet({
+    receipt: result.receipt,
+    receiptData,
+    finalItems: items,
+    products,
+    platform: ctx.request.body.platform,
+    consumerUrl: qrData,
+    strapi,
+  });
+
+  return result;
 }
 
 // ====================== RECEIPT CREATION ======================
@@ -492,7 +505,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
 
   const finalCashback = calculateFinalCashback(items);
 
-  await strapi.documents('api::receipt.receipt').create({
+  const receipt = await strapi.documents('api::receipt.receipt').create({
     data: {
       oofd_uid: receiptData.oofd_uid,
       qrData: ctx.request.body.qrData,
@@ -514,5 +527,15 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       organizationBin: receiptData.organizationBin,
       organizationAddress: receiptData.organizationAddress,
     }
+  });
+
+  await syncReceiptToSheet({
+    receipt,
+    receiptData,
+    finalItems: items,
+    products: [],
+    platform: ctx.request.body.platform,
+    consumerUrl: ctx.request.body.qrData,
+    strapi,
   });
 }

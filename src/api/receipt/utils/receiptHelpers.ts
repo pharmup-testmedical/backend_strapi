@@ -154,6 +154,10 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
                             : 'unit',
                         totalPrice: (commodity.sum || 0) - discount,
                         ntin: commodity.ntin || null,
+                        gtin: commodity.barcode || null,
+                        discount,
+                        itemTaxAmount: commodity.taxes?.[0]?.sum ?? null,
+                        itemTaxRate: commodity.taxes?.[0]?.layout?.rate ?? null,
                     }
                     if (
                         !itemData.name ||
@@ -577,6 +581,13 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice),
                         ntin: null,
+                        gtin: null,
+                        // KOFD/WOFD не печатают скидку/НДС по каждой позиции
+                        // отдельно в надёжно парсимом виде — оставляем пустыми,
+                        // не угадывая формат.
+                        discount: null,
+                        itemTaxAmount: null,
+                        itemTaxRate: null,
                     })
                 }
             }
@@ -584,13 +595,19 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
             continue
         }
 
-        // NTIN is printed on its own line *after* the item's price line (so
-        // the item is already in result.items by the time we see it) — it
-        // belongs to whichever item was most recently pushed.
+        // NTIN/GTIN печатаются каждый на своей строке *после* строки с ценой
+        // позиции (то есть сама позиция уже в result.items к этому моменту)
+        // — относятся к последней добавленной позиции.
         if (text.includes('NTIN')) {
             const ntinMatch = text.match(/NTIN:\s*(\d+)/)
             if (ntinMatch && result.items.length > 0) {
                 result.items[result.items.length - 1].ntin = ntinMatch[1]
+            }
+        }
+        if (text.includes('GTIN')) {
+            const gtinMatch = text.match(/GTIN:\s*(\d+)/)
+            if (gtinMatch && result.items.length > 0) {
+                result.items[result.items.length - 1].gtin = gtinMatch[1]
             }
         }
 
@@ -797,6 +814,13 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                         measureUnit: 'штука',
                         totalPrice: Math.round(totalPrice),
                         ntin: null,
+                        gtin: null,
+                        // KOFD/WOFD не печатают скидку/НДС по каждой позиции
+                        // отдельно в надёжно парсимом виде — оставляем пустыми,
+                        // не угадывая формат.
+                        discount: null,
+                        itemTaxAmount: null,
+                        itemTaxRate: null,
                     })
                 }
             }
@@ -804,13 +828,19 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
             continue
         }
 
-        // NTIN is printed on its own line *after* the item's price line (so
-        // the item is already in result.items by the time we see it) — it
-        // belongs to whichever item was most recently pushed.
+        // NTIN/GTIN печатаются каждый на своей строке *после* строки с ценой
+        // позиции (то есть сама позиция уже в result.items к этому моменту)
+        // — относятся к последней добавленной позиции.
         if (text.includes('NTIN')) {
             const ntinMatch = text.match(/NTIN:\s*(\d+)/)
             if (ntinMatch && result.items.length > 0) {
                 result.items[result.items.length - 1].ntin = ntinMatch[1]
+            }
+        }
+        if (text.includes('GTIN')) {
+            const gtinMatch = text.match(/GTIN:\s*(\d+)/)
+            if (gtinMatch && result.items.length > 0) {
+                result.items[result.items.length - 1].gtin = gtinMatch[1]
             }
         }
 
