@@ -4,6 +4,22 @@
 import { factories } from '@strapi/strapi'
 import { updateUserBalance } from '../../../utils/calculate-user-balance'
 
+const WITHDRAWAL_COOLDOWN_MS = 60 * 1000
+
+// Сериализует создание заявок на вывод по одному requesterDocumentId, чтобы
+// проверка баланса и запись заявки не выполнялись параллельно для одного и
+// того же пользователя (иначе два почти одновременных запроса могут оба
+// пройти проверку доступного остатка ещё до того, как первый успеет
+// сохраниться — гонка). Работает только в рамках одного Node-процесса,
+// но бэкенд задеплоен как один процесс на Plesk, так что этого достаточно.
+const userLocks = new Map<string, Promise<unknown>>()
+const runExclusive = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    const previous = userLocks.get(key) ?? Promise.resolve()
+    const run = previous.then(fn, fn)
+    userLocks.set(key, run.catch(() => {}))
+    return run
+}
+
 export default factories.createCoreController(
     'api::cashback-request.cashback-request',
     ({ strapi }) => ({
@@ -94,48 +110,66 @@ export default factories.createCoreController(
                     )
                 }
 
-                const updatedBalance = await updateUserBalance(requesterDocumentId)
-                strapi.log.info(`Updated user balance: ${updatedBalance}`)
+                // Проверка баланса и создание заявки выполняются в рамках одной
+                // "блокировки" на requesterDocumentId, чтобы два почти
+                // одновременных запроса от одного пользователя не прошли проверку
+                // остатка параллельно (гонка).
+                const newRequest = await runExclusive(requesterDocumentId, async () => {
+                    const lastRequest = await strapi
+                        .documents('api::cashback-request.cashback-request')
+                        .findFirst({
+                            filters: { requester: requesterId },
+                            sort: ['createdAt:desc'],
+                            fields: ['createdAt']
+                        })
+                    if (lastRequest && Date.now() - new Date(lastRequest.createdAt).getTime() < WITHDRAWAL_COOLDOWN_MS) {
+                        strapi.log.warn(`User ${requesterId} tried to create a withdrawal request too soon after the previous one`)
+                        throw new Error('Вы уже отправили заявку на вывод. Попробуйте отправить новую заявку позже.')
+                    }
 
-                const pendingRequests = await strapi
-                    .documents('api::cashback-request.cashback-request')
-                    .findMany({
-                        filters: {
-                            requester: requesterId,
-                            verificationStatus: 'pending'
-                        },
-                        fields: ['amount']
-                    })
-                const pendingTotal = pendingRequests.reduce(
-                    (sum: number, r: any) => sum + (r.amount || 0),
-                    0
-                )
-                strapi.log.info(
-                    `User has pending cashback amount total: ${pendingTotal}`
-                )
+                    const updatedBalance = await updateUserBalance(requesterDocumentId)
+                    strapi.log.info(`Updated user balance: ${updatedBalance}`)
 
-                const availableForWithdrawal = updatedBalance - pendingTotal
-                if (amount > availableForWithdrawal) {
-                    strapi.log.warn(
-                        `Insufficient balance. Requested: ${amount}, available: ${availableForWithdrawal}`
+                    const pendingRequests = await strapi
+                        .documents('api::cashback-request.cashback-request')
+                        .findMany({
+                            filters: {
+                                requester: requesterId,
+                                verificationStatus: 'pending'
+                            },
+                            fields: ['amount']
+                        })
+                    const pendingTotal = pendingRequests.reduce(
+                        (sum: number, r: any) => sum + (r.amount || 0),
+                        0
                     )
-                    throw new Error(
-                        `Недостаточно средств: доступно только ${availableForWithdrawal}₸ с учетом ожидающих запросов`
+                    strapi.log.info(
+                        `User has pending cashback amount total: ${pendingTotal}`
                     )
-                }
 
-                const newRequest = await strapi
-                    .documents('api::cashback-request.cashback-request')
-                    .create({
-                        data: {
-                            requester: requesterId,
-                            amount,
-                            verificationStatus: 'pending',
-                            payoutMethod: payoutMethod as 'kaspi' | 'card',
-                            payoutDestination: trimmedDestination,
-                            comment: trimmedComment || undefined
-                        }
-                    })
+                    const availableForWithdrawal = updatedBalance - pendingTotal
+                    if (amount > availableForWithdrawal) {
+                        strapi.log.warn(
+                            `Insufficient balance. Requested: ${amount}, available: ${availableForWithdrawal}`
+                        )
+                        throw new Error(
+                            `Недостаточно средств: доступно только ${availableForWithdrawal}₸ с учетом ожидающих запросов`
+                        )
+                    }
+
+                    return strapi
+                        .documents('api::cashback-request.cashback-request')
+                        .create({
+                            data: {
+                                requester: requesterId,
+                                amount,
+                                verificationStatus: 'pending',
+                                payoutMethod: payoutMethod as 'kaspi' | 'card',
+                                payoutDestination: trimmedDestination,
+                                comment: trimmedComment || undefined
+                            }
+                        })
+                })
 
                 return ctx.created({
                     message: 'Запрос на кешбэк успешно создан и ожидает проверки',
