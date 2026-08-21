@@ -192,13 +192,11 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
             kktSerialNumber,
             paymentMethod,
             items,
-            // TODO: OOFD присылает структурированный JSON, а не строки чека —
-            // нужен реальный пример ответа, чтобы найти поле с названием и
-            // адресом организации (в отличие от KOFD, где это первая строка
-            // текста чека).
-            organizationName: null,
-            organizationBin: null,
-            organizationAddress: null,
+            // В отличие от KOFD, OOFD присылает эти поля напрямую в JSON
+            // (и адрес точки продажи тоже, чего у KOFD нет вовсе).
+            organizationName: data.orgTitle || null,
+            organizationBin: data.orgId || null,
+            organizationAddress: data.retailPlaceAddress || null,
         }
     } catch (error: any) {
         strapi.log.error('[OOFD] Request error:', {
