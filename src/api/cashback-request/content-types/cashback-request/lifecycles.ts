@@ -12,6 +12,17 @@ const PAYOUT_METHOD_LABELS: Record<string, string> = {
     card: 'Карта',
 };
 
+// Kaspi-перевод обычно делают по имени (получатель ищет по имени в приложении
+// банка), карточный — по фамилии на карте, поэтому какая часть ФИО пишется
+// полностью, а какая — инициалом, зависит от способа вывода.
+const formatUserForPayout = (name: string, surname: string, payoutMethod: string): string => {
+    const initial = (part: string) => (part ? `${part.charAt(0)}.` : '')
+    if (payoutMethod === 'card') {
+        return `${surname || ''} ${initial(name)}`.trim()
+    }
+    return `${name || ''} ${initial(surname)}`.trim()
+}
+
 export default {
     async afterUpdate(event: any) {
         console.log(JSON.stringify(event))
@@ -46,13 +57,18 @@ export default {
             const status = STATUS_LABELS[fullRequest.verificationStatus] || fullRequest.verificationStatus
             const payoutMethod = PAYOUT_METHOD_LABELS[fullRequest.payoutMethod] || fullRequest.payoutMethod || 'Не указан'
             const payoutDestination = fullRequest.payoutDestination || 'Не указаны'
+            const userLabel = formatUserForPayout(
+                fullRequest.requester?.name,
+                fullRequest.requester?.surname,
+                fullRequest.payoutMethod
+            )
 
             if (adminEmail) {
                 await strapi.plugin('email').service('email').send({
                     to: adminEmail,
                     from: 'pharmup@testmedical.kz',
                     subject: `Новая заявка на кешбэк от ${requesterEmail}: ${fullRequest.documentId}`,
-                    text: `Новая заявка на кешбэк\n\nДата создания: ${createdAt}\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nРеквизиты: ${payoutDestination}\nГород: ${city}\n\n${adminUrl}`,
+                    text: `Новая заявка на кешбэк\n\nДата создания: ${createdAt}\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nПользователь: ${userLabel}\nРеквизиты: ${payoutDestination}\nГород: ${city}\n\n${adminUrl}`,
                     html: `
                         <h2>Новая заявка на кешбэк</h2>
                         <p><strong>Дата создания:</strong> ${createdAt}</p>
@@ -60,6 +76,7 @@ export default {
                         <p><strong>Сумма:</strong> ${fullRequest.amount}тг</p>
                         <p><strong>Заявитель:</strong> ${requesterEmail}</p>
                         <p><strong>Способ вывода:</strong> ${payoutMethod}</p>
+                        <p><strong>Пользователь:</strong> ${userLabel}</p>
                         <p><strong>Реквизиты:</strong> ${payoutDestination}</p>
                         <p><strong>Город:</strong> ${city}</p>
                         <hr>
