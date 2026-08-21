@@ -1,17 +1,37 @@
+import fs from 'fs'
 import { google } from 'googleapis'
 import { deriveCityAndAddress } from './kz-city-clusters'
 
 const SPREADSHEET_ID = process.env.RECEIPTS_SHEET_ID
 const SHEET_NAME = process.env.RECEIPTS_SHEET_NAME || 'Лист1'
-const CLIENT_EMAIL = process.env.GOOGLE_SHEETS_CLIENT_EMAIL
-const PRIVATE_KEY = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n')
+
+// Plesk's custom environment variable UI caps values at 255 characters,
+// while an RSA private key is ~1700+ — so the primary path is a JSON key
+// file on disk (GOOGLE_SHEETS_CREDENTIALS_PATH); the separate CLIENT_EMAIL/
+// PRIVATE_KEY vars remain as a fallback for hosts without that limit.
+const resolveCredentials = (): { email?: string; key?: string } => {
+    const credentialsPath = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH
+    if (credentialsPath) {
+        try {
+            const file = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'))
+            return { email: file.client_email, key: file.private_key }
+        } catch (error: any) {
+            return { email: undefined, key: undefined }
+        }
+    }
+    return {
+        email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
+        key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }
+}
 
 let sheetsClient: ReturnType<typeof google.sheets> | null = null
 const getSheetsClient = () => {
     if (!sheetsClient) {
+        const { email, key } = resolveCredentials()
         const auth = new google.auth.JWT({
-            email: CLIENT_EMAIL,
-            key: PRIVATE_KEY,
+            email,
+            key,
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         })
         sheetsClient = google.sheets({ version: 'v4', auth })
@@ -60,8 +80,9 @@ export const syncReceiptToSheet = async ({
     consumerUrl,
     strapi,
 }: SyncReceiptArgs) => {
-    if (!SPREADSHEET_ID || !CLIENT_EMAIL || !PRIVATE_KEY) {
-        strapi.log.debug('[GoogleSheets] Синхронизация пропущена: не настроены учётные данные (RECEIPTS_SHEET_ID / GOOGLE_SHEETS_CLIENT_EMAIL / GOOGLE_SHEETS_PRIVATE_KEY)')
+    const { email, key } = resolveCredentials()
+    if (!SPREADSHEET_ID || !email || !key) {
+        strapi.log.debug('[GoogleSheets] Синхронизация пропущена: не настроены учётные данные (RECEIPTS_SHEET_ID и GOOGLE_SHEETS_CREDENTIALS_PATH, либо GOOGLE_SHEETS_CLIENT_EMAIL/GOOGLE_SHEETS_PRIVATE_KEY)')
         return
     }
 
