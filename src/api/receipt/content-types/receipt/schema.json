@@ -108,7 +108,7 @@
     "organizationName": {
       "type": "string",
       "required": false,
-      "description": "Название организации-продавца из фискальных данных чека (сейчас доступно только для kofd)"
+      "description": "Название организации-продавца из фискальных данных чека (доступно для oofd и kofd; wofd пока не проверен)"
     },
     "organizationBin": {
       "type": "string",
