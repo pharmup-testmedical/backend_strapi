@@ -9,9 +9,27 @@ export default {
     await handleReceiptLifecycle(result);
   },
 
+  // Если чек в админке переносят на другого пользователя, обычного
+  // пересчёта баланса НОВОГО владельца недостаточно — у ПРЕЖНЕГО владельца
+  // баланс останется завышенным на кэшбэк этого чека. Запоминаем прежнего
+  // владельца до обновления, чтобы пересчитать и его тоже.
+  async beforeUpdate(event: any) {
+    const { where } = event.params;
+    const record = await strapi.db.query('api::receipt.receipt').findOne({
+      where,
+      populate: ['user'],
+    });
+    event.state = { previousUserDocumentId: record?.user?.documentId };
+  },
+
   async afterUpdate(event: any) {
     const { result } = event;
-    await handleReceiptLifecycle(result);
+    const currentUserDocumentId = await handleReceiptLifecycle(result);
+
+    const previousUserDocumentId = event.state?.previousUserDocumentId;
+    if (previousUserDocumentId && previousUserDocumentId !== currentUserDocumentId) {
+      await updateUserBalance(previousUserDocumentId);
+    }
   },
 
   // Запись удаляется до срабатывания afterDelete, поэтому владельца
@@ -42,7 +60,7 @@ async function handleReceiptLifecycle(result: any) {
 
   if (!fullReceipt?.user?.documentId) {
     strapi.log.error(`[LIFECYCLE] No user for receipt ${result.documentId}`);
-    return;
+    return undefined;
   }
 
   const userId = fullReceipt.user.documentId;
@@ -64,4 +82,5 @@ async function handleReceiptLifecycle(result: any) {
   }
 
   await updateUserBalance(userId);
+  return userId;
 }
