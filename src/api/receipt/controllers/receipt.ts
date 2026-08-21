@@ -150,9 +150,12 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
   // таблицу. Защищён отдельным секретом (не JWT-авторизацией конечного
   // пользователя), маршрут публичный (auth: false).
   async backfillSheet(ctx: any) {
-    const providedSecret = ctx.request.headers['x-backfill-secret'];
-    const expectedSecret = process.env.SHEET_BACKFILL_SECRET;
+    const providedSecret = (ctx.request.headers['x-backfill-secret'] || '').trim();
+    const expectedSecret = (process.env.SHEET_BACKFILL_SECRET || '').trim();
     if (!expectedSecret || providedSecret !== expectedSecret) {
+      // Не логируем сами значения секрета — только длины, этого достаточно,
+      // чтобы отличить "переменная не задана на сервере" от "не совпадает".
+      strapi.log.warn(`[Backfill] Секрет не совпал: env задан=${!!expectedSecret} (длина ${expectedSecret.length}), в заголовке длина ${providedSecret.length}`);
       return ctx.forbidden('Неверный или не заданный секрет');
     }
 
