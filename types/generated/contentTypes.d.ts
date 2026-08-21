@@ -880,6 +880,9 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     ofdType: Schema.Attribute.Enumeration<['oofd', 'kofd', 'wofd']> &
       Schema.Attribute.Required;
     oofd_uid: Schema.Attribute.String & Schema.Attribute.Unique;
+    organizationAddress: Schema.Attribute.String;
+    organizationBin: Schema.Attribute.String;
+    organizationName: Schema.Attribute.String;
     paymentMethod: Schema.Attribute.String & Schema.Attribute.Required;
     platform: Schema.Attribute.Enumeration<['ios', 'android']>;
     publishedAt: Schema.Attribute.DateTime;

@@ -235,6 +235,9 @@ async function processAndCreateReceipt(
       finalCashback,
       countsForScanTask: isForTask,
       platform: context.ctx.request.body.platform,
+      organizationName: receiptData.organizationName,
+      organizationBin: receiptData.organizationBin,
+      organizationAddress: receiptData.organizationAddress,
       publishedAt: new Date()
     }
   });
@@ -507,6 +510,9 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       items,
       finalCashback,
       platform: ctx.request.body.platform,
+      organizationName: receiptData.organizationName,
+      organizationBin: receiptData.organizationBin,
+      organizationAddress: receiptData.organizationAddress,
     }
   });
 }

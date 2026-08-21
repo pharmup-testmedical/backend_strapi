@@ -63,12 +63,26 @@ export default {
                 fullRequest.payoutMethod
             )
 
+            // Организация/адрес не хранятся у пользователя — берём с его
+            // самого свежего чека (для kofd-чеков сейчас есть только
+            // название и БИН, адрес в фискальных данных kofd отсутствует).
+            const [latestReceipt] = await strapi.documents('api::receipt.receipt').findMany({
+                filters: { user: { id: fullRequest.requester?.id } },
+                sort: ['date:desc'],
+                limit: 1,
+                fields: ['organizationName', 'organizationBin', 'organizationAddress'],
+            })
+            const organizationLine = latestReceipt?.organizationName
+                ? `${latestReceipt.organizationName}${latestReceipt.organizationBin ? ` (БИН ${latestReceipt.organizationBin})` : ''}`
+                : null
+            const organizationAddress = latestReceipt?.organizationAddress || null
+
             if (adminEmail) {
                 await strapi.plugin('email').service('email').send({
                     to: adminEmail,
                     from: 'pharmup@testmedical.kz',
                     subject: `Новая заявка на кешбэк от ${requesterEmail}: ${fullRequest.documentId}`,
-                    text: `Новая заявка на кешбэк\n\nДата создания: ${createdAt}\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nПользователь: ${userLabel}\nРеквизиты: ${payoutDestination}\nГород: ${city}\n\n${adminUrl}`,
+                    text: `Новая заявка на кешбэк\n\nДата создания: ${createdAt}\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nПользователь: ${userLabel}\nРеквизиты: ${payoutDestination}\nГород: ${city}${organizationLine ? `\n${organizationLine}` : ''}${organizationAddress ? `\n${organizationAddress}` : ''}\n\n${adminUrl}`,
                     html: `
                         <h2>Новая заявка на кешбэк</h2>
                         <p><strong>Дата создания:</strong> ${createdAt}</p>
@@ -79,6 +93,8 @@ export default {
                         <p><strong>Пользователь:</strong> ${userLabel}</p>
                         <p><strong>Реквизиты:</strong> ${payoutDestination}</p>
                         <p><strong>Город:</strong> ${city}</p>
+                        ${organizationLine ? `<p>${organizationLine}</p>` : ''}
+                        ${organizationAddress ? `<p>${organizationAddress}</p>` : ''}
                         <hr>
                         <p><a href="${adminUrl}">Открыть заявку в панели администратора</a></p>
                     `,

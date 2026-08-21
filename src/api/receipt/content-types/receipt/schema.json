@@ -104,6 +104,21 @@
         "android"
       ],
       "required": false
+    },
+    "organizationName": {
+      "type": "string",
+      "required": false,
+      "description": "Название организации-продавца из фискальных данных чека (сейчас доступно только для kofd)"
+    },
+    "organizationBin": {
+      "type": "string",
+      "required": false,
+      "description": "БИН организации-продавца из фискальных данных чека"
+    },
+    "organizationAddress": {
+      "type": "string",
+      "required": false,
+      "description": "Адрес точки продажи из фискальных данных чека"
     }
   }
 }

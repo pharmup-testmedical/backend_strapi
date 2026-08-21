@@ -192,6 +192,13 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
             kktSerialNumber,
             paymentMethod,
             items,
+            // TODO: OOFD присылает структурированный JSON, а не строки чека —
+            // нужен реальный пример ответа, чтобы найти поле с названием и
+            // адресом организации (в отличие от KOFD, где это первая строка
+            // текста чека).
+            organizationName: null,
+            organizationBin: null,
+            organizationAddress: null,
         }
     } catch (error: any) {
         strapi.log.error('[OOFD] Request error:', {
@@ -288,6 +295,9 @@ const parseKofdTextData = async (data: any, apiUrl: string, strapi: any) => {
         kktSerialNumber: extractedData.kktSerialNumber,
         paymentMethod: extractedData.paymentMethod,
         items: extractedData.items,
+        organizationName: extractedData.organizationName,
+        organizationBin: extractedData.organizationBin,
+        organizationAddress: extractedData.organizationAddress,
     }
 }
 
@@ -370,6 +380,11 @@ const parseWofdTextData = async (data: any, apiUrl: string, strapi: any) => {
         kktSerialNumber: extractedData.kktSerialNumber,
         paymentMethod: extractedData.paymentMethod,
         items: extractedData.items,
+        // WOFD пока без реального примера — поля не заполняются, чтобы не
+        // угадывать формат.
+        organizationName: null,
+        organizationBin: null,
+        organizationAddress: null,
     }
 }
 
@@ -420,7 +435,14 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         kktSerialNumber: '',
         taxAmount: 0,
         taxRate: 0,
-        paymentMethod: ''
+        paymentMethod: '',
+        // Название организации всегда печатается первой строкой чека
+        // (например `ТОО "ALIP PHARM"`), БИН — следующей. Адрес точки
+        // продажи в фискальные данные KOFD не попадает вообще — печатается
+        // локально кассой, поэтому здесь его взять неоткуда.
+        organizationName: null,
+        organizationBin: null,
+        organizationAddress: null,
     }
 
     // Lines that are not part of a product name (receipt metadata, separators,
@@ -458,6 +480,19 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
         }
 
         if (!text) continue
+
+        // Название организации — самая первая непустая строка чека, до
+        // всех остальных полей (БИН, дата и т.д.).
+        if (result.organizationName === null) {
+            result.organizationName = text
+        }
+
+        if ((text.includes('БСН') || text.includes('БИН')) && !result.organizationBin) {
+            const binMatch = text.match(/(\d{10,12})/)
+            if (binMatch) {
+                result.organizationBin = binMatch[1]
+            }
+        }
 
         if ((text.includes('ФИСКАЛДЫҚ БЕЛГІ') || text.includes('ФИСКАЛЬНЫЙ ПРИЗНАК')) && !result.fiscalId) {
             const fiscalMatch = text.match(/(\d{12,})/)
