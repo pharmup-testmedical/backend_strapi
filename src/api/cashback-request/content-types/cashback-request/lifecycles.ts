@@ -19,7 +19,7 @@ export default {
         const { result } = event;
         const fullRequest = await strapi.documents('api::cashback-request.cashback-request').findOne({
             documentId: result.documentId,
-            populate: ['requester']
+            populate: { requester: { populate: ['city'] } }
         });
 
         // Send admin notification email for new cashback requests
@@ -28,23 +28,22 @@ export default {
             const websiteSetup = await strapi.documents('api::website-setup.website-setup').findFirst();
             const adminEmail = websiteSetup?.adminNotificationEmail;
             const requesterEmail = fullRequest.requester?.email || 'Не указан';
+            const city = fullRequest.requester?.city?.name || fullRequest.requester?.otherCity || 'Не указан';
+            const adminUrl = `https://strapi.testmedical.kz/admin/content-manager/collection-types/api::cashback-request.cashback-request/${fullRequest.documentId}`;
 
             if (adminEmail) {
                 await strapi.plugin('email').service('email').send({
                     to: adminEmail,
                     from: 'pharmup@testmedical.kz',
                     subject: `Новая заявка на кешбэк от ${requesterEmail}: ${fullRequest.documentId}`,
-                    text: `Создана новая заявка на кешбэк.\n\nID заявки: ${fullRequest.documentId}\nСумма: ${fullRequest.amount}\nСтатус: ${fullRequest.verificationStatus}\nЗаявитель: ${fullRequest.requester?.username || requesterEmail}\nДата создания: ${new Date().toLocaleString('ru-RU')}`,
+                    text: `Новая заявка на кешбэк\n\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nГород: ${city}\n\n${adminUrl}`,
                     html: `
                         <h2>Новая заявка на кешбэк</h2>
-                        <p><strong>ID заявки:</strong> ${fullRequest.documentId}</p>
-                        <p><strong>Статус:</strong> ${fullRequest.verificationStatus}</p>
-                        <p><strong>Сумма:</strong> ${fullRequest.amount}</p>
-                        <p><strong>Заявитель:</strong> ${fullRequest.requester?.username || requesterEmail}</p>
-                        <p><strong>Email заявителя:</strong> ${requesterEmail}</p>
-                        <p><strong>Дата создания:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+                        <p><strong>Сумма:</strong> ${fullRequest.amount}тг</p>
+                        <p><strong>Заявитель:</strong> ${requesterEmail}</p>
+                        <p><strong>Город:</strong> ${city}</p>
                         <hr>
-                        <p>Пожалуйста, проверьте эту заявку в панели администратора.</p>
+                        <p><a href="${adminUrl}">Открыть заявку в панели администратора</a></p>
                     `,
                 });
 
