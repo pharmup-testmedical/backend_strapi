@@ -108,17 +108,17 @@
     "organizationName": {
       "type": "string",
       "required": false,
-      "description": "Название организации-продавца из фискальных данных чека (доступно для oofd и kofd; wofd пока не проверен)"
+      "description": "Название организации-продавца из фискальных данных чека (oofd/kofd/wofd)"
     },
     "organizationBin": {
       "type": "string",
       "required": false,
-      "description": "БИН организации-продавца из фискальных данных чека"
+      "description": "БИН организации-продавца из фискальных данных чека (oofd/kofd/wofd)"
     },
     "organizationAddress": {
       "type": "string",
       "required": false,
-      "description": "Адрес точки продажи из фискальных данных чека"
+      "description": "Адрес точки продажи из фискальных данных чека (доступно для oofd и wofd; в данных kofd адреса нет)"
     }
   }
 }
