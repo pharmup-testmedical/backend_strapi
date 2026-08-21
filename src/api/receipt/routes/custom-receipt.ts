@@ -24,5 +24,11 @@ export default {
             path: '/receipts/read-ofd-ticket',
             handler: 'receipt.readOFD',
         },
+        {
+            method: 'POST',
+            path: '/receipts/backfill-sheet',
+            handler: 'receipt.backfillSheet',
+            config: { auth: false },
+        },
     ],
 };

@@ -58,7 +58,7 @@ const formatTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinu
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
 
-interface SyncReceiptArgs {
+interface ReceiptRowArgs {
     receipt: any
     receiptData: {
         organizationName?: string | null
@@ -67,17 +67,16 @@ interface SyncReceiptArgs {
         items: any[]
     }
     finalItems: any[]
-    products: { documentId: string; canonicalName: string }[]
+    products: { documentId: string; canonicalName?: string }[]
     platform: string | null
     consumerUrl: string
     userEmail?: string | null
-    strapi: any
 }
 
-// Записывает по одной строке в Google Таблицу на каждую позицию чека —
-// не блокирует отправку чека, если недоступны учётные данные Google Sheets
-// или сама запись не удалась (аналогично письму администратору).
-export const syncReceiptToSheet = async ({
+// Собирает строки таблицы для одного чека — по одной строке на позицию.
+// Не делает сетевых вызовов, поэтому используется и для мгновенной
+// синхронизации нового чека, и для пакетного бэкфилла старых.
+export const buildReceiptRows = ({
     receipt,
     receiptData,
     finalItems,
@@ -85,74 +84,87 @@ export const syncReceiptToSheet = async ({
     platform,
     consumerUrl,
     userEmail,
-    strapi,
-}: SyncReceiptArgs) => {
+}: ReceiptRowArgs): any[][] => {
+    const date = receipt.date instanceof Date ? receipt.date : new Date(receipt.date)
+    const { city, address } = deriveCityAndAddress(receiptData.organizationAddress)
+    const rawItems = receiptData.items || []
+
+    return finalItems.map((item: any, index: number) => {
+        const raw = rawItems[index] || {}
+        const isCashbackItem = item.__component === 'receipt-item.item'
+        const isVerified = isCashbackItem && CASHBACK_VERIFIED_STATUSES.includes(item.verificationStatus)
+        const claimedProduct = isCashbackItem && item.claimedProduct?.documentId
+            ? products.find((p) => p.documentId === item.claimedProduct.documentId)
+            : null
+
+        return [
+            '=ROW()-1', // ID — формула, чтобы не зависеть от гонки при параллельной записи
+            formatDate(date),
+            formatTime(date),
+            receipt.fiscalId,
+            receipt.kktCode,
+            receipt.kktSerialNumber,
+            receipt.ofdType,
+            receiptData.organizationName || '',
+            receiptData.organizationBin || '',
+            city,
+            address,
+            raw.ntin || '',
+            raw.gtin || '',
+            item.name,
+            claimedProduct?.canonicalName || '',
+            item.props?.quantity ?? '',
+            item.props?.measureUnit ?? '',
+            item.props?.unitPrice ?? '',
+            raw.itemTaxAmount ?? '',
+            formatPercent(raw.itemTaxRate),
+            raw.discount || '',
+            receipt.totalAmount,
+            isVerified ? 'TRUE' : 'FALSE',
+            isVerified ? item.cashback : '',
+            receipt.paymentMethod,
+            platform || '',
+            consumerUrl,
+            userEmail || '',
+        ]
+    })
+}
+
+// Пишет уже готовые строки одним (или несколькими, если строк много) запросом
+// к Sheets API. Общая точка выхода в сеть для одиночной синхронизации и бэкфилла.
+export const appendRowsToSheet = async (rows: any[][], strapi: any): Promise<{ ok: boolean; error?: string }> => {
     const { email, key, error: credentialsError } = resolveCredentials()
     if (!SPREADSHEET_ID) {
-        strapi.log.debug('[GoogleSheets] Синхронизация пропущена: не задан RECEIPTS_SHEET_ID')
-        return
+        return { ok: false, error: 'Не задан RECEIPTS_SHEET_ID' }
     }
     if (!email || !key) {
-        strapi.log.debug(`[GoogleSheets] Синхронизация пропущена: ${credentialsError}`)
-        return
+        return { ok: false, error: credentialsError }
     }
+    if (rows.length === 0) return { ok: true }
 
+    const sheets = getSheetsClient()
+    await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A:A`,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: rows },
+    })
+    return { ok: true }
+}
+
+// Записывает по одной строке в Google Таблицу на каждую позицию чека —
+// не блокирует отправку чека, если недоступны учётные данные Google Sheets
+// или сама запись не удалась (аналогично письму администратору).
+export const syncReceiptToSheet = async (args: ReceiptRowArgs & { strapi: any }) => {
+    const { receipt, strapi } = args
     try {
-        const date = receipt.date instanceof Date ? receipt.date : new Date(receipt.date)
-        const { city, address } = deriveCityAndAddress(receiptData.organizationAddress)
-        const rawItems = receiptData.items || []
-
-        const rows = finalItems.map((item: any, index: number) => {
-            const raw = rawItems[index] || {}
-            const isCashbackItem = item.__component === 'receipt-item.item'
-            const isVerified = isCashbackItem && CASHBACK_VERIFIED_STATUSES.includes(item.verificationStatus)
-            const claimedProduct = isCashbackItem && item.claimedProduct?.documentId
-                ? products.find((p) => p.documentId === item.claimedProduct.documentId)
-                : null
-
-            return [
-                '=ROW()-1', // ID — формула, чтобы не зависеть от гонки при параллельной записи
-                formatDate(date),
-                formatTime(date),
-                receipt.fiscalId,
-                receipt.kktCode,
-                receipt.kktSerialNumber,
-                receipt.ofdType,
-                receiptData.organizationName || '',
-                receiptData.organizationBin || '',
-                city,
-                address,
-                raw.ntin || '',
-                raw.gtin || '',
-                item.name,
-                claimedProduct?.canonicalName || '',
-                item.props?.quantity ?? '',
-                item.props?.measureUnit ?? '',
-                item.props?.unitPrice ?? '',
-                raw.itemTaxAmount ?? '',
-                formatPercent(raw.itemTaxRate),
-                raw.discount || '',
-                receipt.totalAmount,
-                isVerified ? 'TRUE' : 'FALSE',
-                isVerified ? item.cashback : '',
-                receipt.paymentMethod,
-                platform || '',
-                consumerUrl,
-                userEmail || '',
-            ]
-        })
-
-        if (rows.length === 0) return
-
-        const sheets = getSheetsClient()
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:A`,
-            valueInputOption: 'USER_ENTERED',
-            insertDataOption: 'INSERT_ROWS',
-            requestBody: { values: rows },
-        })
-
+        const rows = buildReceiptRows(args)
+        const result = await appendRowsToSheet(rows, strapi)
+        if (!result.ok) {
+            strapi.log.debug(`[GoogleSheets] Синхронизация пропущена: ${result.error}`)
+            return
+        }
         strapi.log.info(`[GoogleSheets] Записано ${rows.length} строк(и) для чека ${receipt.fiscalId}`)
     } catch (error: any) {
         strapi.log.error(`[GoogleSheets] Ошибка синхронизации чека ${receipt.fiscalId}: ${error.message}`)

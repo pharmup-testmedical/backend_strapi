@@ -3,7 +3,7 @@
  */
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
-import { syncReceiptToSheet } from '../../../utils/google-sheets-sync'
+import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet } from '../../../utils/google-sheets-sync'
 
 // ==================== EXPORTED TYPES ====================
 export type ReceiptVerificationStatus =
@@ -139,6 +139,91 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
     } catch (error: any) {
       strapi.log.error(`[readOFD] Error for ${ofdType}:`, error.message);
       ctx.throw(400, error.message);
+    }
+  },
+
+  // Одноразовый ручной бэкфилл уже существующих чеков в Google Таблицу.
+  // Не обращается к ОФД (NTIN/GTIN/НДС/Скидка останутся пустыми для старых
+  // чеков — этих полей нет в самой базе, только в ответе ОФД в момент
+  // отправки чека), поэтому не может как-либо повлиять на верификацию или
+  // кешбэк — только читает уже сохранённые данные и дописывает строки в
+  // таблицу. Защищён отдельным секретом (не JWT-авторизацией конечного
+  // пользователя), маршрут публичный (auth: false).
+  async backfillSheet(ctx: any) {
+    const providedSecret = ctx.request.headers['x-backfill-secret'];
+    const expectedSecret = process.env.SHEET_BACKFILL_SECRET;
+    if (!expectedSecret || providedSecret !== expectedSecret) {
+      return ctx.forbidden('Неверный или не заданный секрет');
+    }
+
+    // ?start=N — чтобы продолжить с места обрыва, не задваивая уже
+    // записанные строки, если бэкфилл прервался на середине.
+    const pageSize = 100;
+    let start = Number(ctx.query.start) || 0;
+
+    try {
+      const products = await strapi.documents('api::product.product').findMany({
+        fields: ['canonicalName'],
+      });
+
+      let totalReceipts = 0;
+      let totalRows = 0;
+
+      while (true) {
+        const receipts = await strapi.documents('api::receipt.receipt').findMany({
+          start,
+          limit: pageSize,
+          sort: ['date:asc'],
+          populate: {
+            user: { fields: ['email'] },
+            items: {
+              on: {
+                'receipt-item.item': { populate: { claimedProduct: true, props: true } },
+                'receipt-item.product-claim': { populate: { props: true } },
+              },
+            },
+          },
+        });
+
+        if (receipts.length === 0) break;
+
+        const rows = receipts.flatMap((receipt: any) =>
+          buildReceiptRows({
+            receipt,
+            receiptData: {
+              organizationName: receipt.organizationName,
+              organizationBin: receipt.organizationBin,
+              organizationAddress: receipt.organizationAddress,
+              items: [], // старых сырых данных ОФД нет — NTIN/GTIN/НДС/Скидка останутся пустыми
+            },
+            finalItems: receipt.items || [],
+            products,
+            platform: receipt.platform,
+            consumerUrl: receipt.qrData,
+            userEmail: receipt.user?.email,
+          })
+        );
+
+        const result = await appendRowsToSheet(rows, strapi);
+        if (!result.ok) {
+          strapi.log.error(`[Backfill] Ошибка записи на start=${start}: ${result.error}`);
+          return ctx.badRequest(`${result.error} (для продолжения запросите с ?start=${start})`);
+        }
+
+        totalReceipts += receipts.length;
+        totalRows += rows.length;
+        start += pageSize;
+
+        strapi.log.info(`[Backfill] Обработано ${totalReceipts} чек(ов), записано ${totalRows} строк(и)`);
+
+        // Небольшая пауза между пачками, чтобы не упереться в квоту Sheets API.
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      return ctx.send({ message: `Бэкфилл завершён: ${totalReceipts} чеков, ${totalRows} строк(и)` });
+    } catch (error: any) {
+      strapi.log.error(`[Backfill] Ошибка на start=${start}: ${error.message}`);
+      return ctx.badRequest(`${error.message || 'Ошибка бэкфилла'} (для продолжения запросите с ?start=${start})`);
     }
   }
 }));
