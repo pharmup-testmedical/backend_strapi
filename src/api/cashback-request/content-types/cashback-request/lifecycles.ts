@@ -24,6 +24,19 @@ const formatUserForPayout = (name: string, surname: string, payoutMethod: string
 }
 
 export default {
+    // Если заявку в админке переносят на другого пользователя (requester),
+    // одного пересчёта баланса НОВОГО заявителя недостаточно — у ПРЕЖНЕГО
+    // заявителя баланс останется искажённым на сумму этой заявки. Запоминаем
+    // прежнего заявителя до обновления, чтобы пересчитать и его тоже.
+    async beforeUpdate(event: any) {
+        const { where } = event.params;
+        const record = await strapi.db.query('api::cashback-request.cashback-request').findOne({
+            where,
+            populate: ['requester']
+        });
+        event.state = { previousRequesterDocumentId: record?.requester?.documentId };
+    },
+
     async afterUpdate(event: any) {
         console.log(JSON.stringify(event))
         const { result } = event;
@@ -34,6 +47,11 @@ export default {
 
         if (fullRequest.requester?.documentId) {
             await updateUserBalance(fullRequest.requester.documentId);
+        }
+
+        const previousRequesterDocumentId = event.state?.previousRequesterDocumentId;
+        if (previousRequesterDocumentId && previousRequesterDocumentId !== fullRequest.requester?.documentId) {
+            await updateUserBalance(previousRequesterDocumentId);
         }
     },
 

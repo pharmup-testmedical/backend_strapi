@@ -17,8 +17,30 @@ export default {
         await syncBalance(event.result.documentId);
     },
 
+    // Если тест в админке переносят на другого пользователя (user),
+    // пересчёта баланса нового владельца недостаточно — у прежнего баланс
+    // останется завышенным на кэшбэк этого теста. Запоминаем прежнего
+    // владельца заранее, чтобы пересчитать и его тоже.
+    async beforeUpdate(event: any) {
+        const { where } = event.params;
+        const record = await strapi.db.query('api::completed-test.completed-test').findOne({
+            where,
+            populate: ['user']
+        });
+        event.state = { previousUserDocumentId: record?.user?.documentId };
+    },
+
     async afterUpdate(event) {
         await syncBalance(event.result.documentId);
+
+        const previousUserDocumentId = event.state?.previousUserDocumentId;
+        const fullRecord = await strapi.documents('api::completed-test.completed-test').findOne({
+            documentId: event.result.documentId,
+            populate: ['user']
+        });
+        if (previousUserDocumentId && previousUserDocumentId !== fullRecord?.user?.documentId) {
+            await updateUserBalance(previousUserDocumentId);
+        }
     },
 
     // Запись удаляется до срабатывания afterDelete, поэтому владельца

@@ -20,8 +20,30 @@ export default {
         await syncBalance(event.result.documentId)
     },
 
+    // Если задание в админке переносят на другого пользователя (user),
+    // пересчёта баланса нового владельца недостаточно — у прежнего баланс
+    // останется завышенным на кэшбэк этого задания. Запоминаем прежнего
+    // владельца заранее, чтобы пересчитать и его тоже.
+    async beforeUpdate(event: any) {
+        const { where } = event.params
+        const record = await strapi.db.query('api::completed-task.completed-task').findOne({
+            where,
+            populate: ['user']
+        })
+        event.state = { previousUserDocumentId: record?.user?.documentId }
+    },
+
     async afterUpdate(event: any) {
         await syncBalance(event.result.documentId)
+
+        const previousUserDocumentId = event.state?.previousUserDocumentId
+        const fullRecord = await strapi.documents('api::completed-task.completed-task').findOne({
+            documentId: event.result.documentId,
+            populate: ['user']
+        })
+        if (previousUserDocumentId && previousUserDocumentId !== fullRecord?.user?.documentId) {
+            await updateUserBalance(previousUserDocumentId)
+        }
     },
 
     // Запись удаляется до срабатывания afterDelete, поэтому нужно
