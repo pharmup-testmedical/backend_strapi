@@ -201,6 +201,7 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
     products,
     platform: ctx.request.body.platform,
     consumerUrl: qrData,
+    userEmail: ctx.state.user?.email,
     strapi,
   });
 
@@ -536,6 +537,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
     products: [],
     platform: ctx.request.body.platform,
     consumerUrl: ctx.request.body.qrData,
+    userEmail: ctx.state.user?.email,
     strapi,
   });
 }

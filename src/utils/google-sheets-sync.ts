@@ -70,6 +70,7 @@ interface SyncReceiptArgs {
     products: { documentId: string; canonicalName: string }[]
     platform: string | null
     consumerUrl: string
+    userEmail?: string | null
     strapi: any
 }
 
@@ -83,6 +84,7 @@ export const syncReceiptToSheet = async ({
     products,
     platform,
     consumerUrl,
+    userEmail,
     strapi,
 }: SyncReceiptArgs) => {
     const { email, key, error: credentialsError } = resolveCredentials()
@@ -136,6 +138,7 @@ export const syncReceiptToSheet = async ({
                 receipt.paymentMethod,
                 platform || '',
                 consumerUrl,
+                userEmail || '',
             ]
         })
 
