@@ -120,7 +120,7 @@ export const buildReceiptRows = ({
             formatPercent(raw.itemTaxRate),
             raw.discount || '',
             receipt.totalAmount,
-            isVerified ? 'TRUE' : 'FALSE',
+            isCashbackItem ? 'TRUE' : 'FALSE',
             isVerified ? item.cashback : '',
             receipt.paymentMethod,
             platform || '',
