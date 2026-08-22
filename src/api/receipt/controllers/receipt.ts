@@ -530,12 +530,24 @@ async function processClaimedItem(itemName: string, props: any, product: any, nt
       const alias = await findOrCreateAliasByName(itemName, ntin, product, 'verified');
       productAlias = { documentId: alias.documentId };
     } else {
-      // NTIN present on both sides but they disagree — never auto-reject,
-      // always route to manual_review so an admin compares by eye,
-      // regardless of whether the name would otherwise auto-match.
-      verificationStatus = 'manual_review';
-      const alias = await findOrCreateAliasByName(itemName, ntin, product, 'unverified');
-      productAlias = { documentId: alias.documentId };
+      // NTIN present on both sides but they disagree. If an admin has
+      // already manually verified this exact item name as an alias for
+      // this product, trust that human judgement over the NTIN mismatch
+      // (e.g. the manufacturer prints multiple NTIN variants for the same
+      // product) instead of forcing every future receipt with this name
+      // back into manual review forever.
+      const existingAlias = (product.productAliases || []).find(
+        (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
+      );
+
+      if (existingAlias?.verificationStatus === 'verified') {
+        verificationStatus = 'auto_verified_alias';
+        productAlias = { documentId: existingAlias.documentId };
+      } else {
+        verificationStatus = 'manual_review';
+        const alias = await findOrCreateAliasByName(itemName, ntin, product, 'unverified');
+        productAlias = { documentId: alias.documentId };
+      }
     }
   } else if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
     verificationStatus = 'auto_verified_canon';
