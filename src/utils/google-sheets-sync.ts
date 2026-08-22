@@ -44,13 +44,6 @@ const getSheetsClient = () => {
     return sheetsClient
 }
 
-const CASHBACK_VERIFIED_STATUSES = [
-    'auto_verified_canon',
-    'auto_verified_alias',
-    'auto_verified_ntin',
-    'manually_verified_alias',
-]
-
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const formatDate = (date: Date) => `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
 const formatTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
@@ -92,7 +85,6 @@ export const buildReceiptRows = ({
     return finalItems.map((item: any, index: number) => {
         const raw = rawItems[index] || {}
         const isCashbackItem = item.__component === 'receipt-item.item'
-        const isVerified = isCashbackItem && CASHBACK_VERIFIED_STATUSES.includes(item.verificationStatus)
         const claimedProduct = isCashbackItem && item.claimedProduct?.documentId
             ? products.find((p) => p.documentId === item.claimedProduct.documentId)
             : null
@@ -121,7 +113,7 @@ export const buildReceiptRows = ({
             raw.discount || '',
             receipt.totalAmount,
             isCashbackItem ? 'TRUE' : 'FALSE',
-            isVerified ? item.cashback : '',
+            isCashbackItem ? item.cashback : '',
             receipt.paymentMethod,
             platform || '',
             consumerUrl,
