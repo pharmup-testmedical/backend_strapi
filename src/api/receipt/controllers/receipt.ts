@@ -28,6 +28,34 @@ export interface CashbackItem {
 
 export type ReceiptItem = any;
 
+// Сообщения из парсеров ОФД (receiptHelpers.ts) технические и на английском —
+// пользователю нужен понятный русский текст, а не "WOFD parsing failed:
+// Receipt not found in WOFD system". Не трогаем сами throw в парсерах (это
+// диагностические сообщения для логов), а переводим только известные
+// паттерны на выходе из API; всё остальное (включая уже русские сообщения
+// вроде "Чек уже был отправлен") возвращаем как есть.
+const translateOfdError = (message: string): string | null => {
+  if (/not found in \w+ system/i.test(message)) {
+    return 'Чек не найден. Проверьте правильность введённых данных.'
+  }
+  if (/missing required parameters/i.test(message)) {
+    return 'Не хватает данных для поиска чека. Проверьте правильность введённых данных.'
+  }
+  if (/invalid receipt data/i.test(message)) {
+    return 'Не удалось распознать данные чека. Попробуйте отсканировать заново или ввести данные вручную.'
+  }
+  if (/could not extract/i.test(message)) {
+    return 'Не удалось прочитать данные чека из ответа ОФД. Попробуйте позже.'
+  }
+  if (/unsupported ofd type/i.test(message)) {
+    return 'Неподдерживаемый тип ОФД.'
+  }
+  if (/(ofd|oofd|kofd|wofd) (request failed|parsing failed)/i.test(message)) {
+    return 'Не удалось получить данные чека от ОФД. Попробуйте позже.'
+  }
+  return null
+}
+
 // ==================== CONTROLLER ====================
 export default factories.createCoreController('api::receipt.receipt', ({ strapi }) => ({
 
@@ -40,7 +68,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       });
     } catch (error: any) {
       strapi.log.error(`Error processing receipt for user ${ctx.state.user?.id}: ${error.message}`);
-      return ctx.badRequest(error.message || 'Непредвиденная ошибка при обработке чека');
+      return ctx.badRequest(
+        translateOfdError(error.message || '') || error.message || 'Непредвиденная ошибка при обработке чека'
+      );
     }
   },
 
@@ -82,7 +112,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       });
     } catch (error: any) {
       strapi.log.error(`Error in submitForTask for user ${ctx.state.user?.id}: ${error.message}`);
-      return ctx.badRequest(error.message || 'Ошибка при обработке чека');
+      return ctx.badRequest(
+        translateOfdError(error.message || '') || error.message || 'Ошибка при обработке чека'
+      );
     }
   },
 
@@ -130,15 +162,19 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
 
   async readOFD(ctx: any) {
     const { fiscalUrl, ofdType = 'oofd' } = ctx.request.body;
-    if (!fiscalUrl) return ctx.badRequest('Fiscal URL is required');
-    if (!ofdType) return ctx.badRequest('OFD type is required');
+    if (!fiscalUrl) return ctx.badRequest('Укажите ссылку или данные чека');
+    if (!ofdType) return ctx.badRequest('Укажите тип ОФД');
 
     try {
       const receiptData = await parseReceiptByOfdType(fiscalUrl, ofdType, { strapi });
       return ctx.send({ ofdType, receiptData });
     } catch (error: any) {
       strapi.log.error(`[readOFD] Error for ${ofdType}:`, error.message);
-      ctx.throw(400, error.message);
+      ctx.throw(
+        400,
+        translateOfdError(error.message || '') ||
+          'Не удалось получить данные чека. Проверьте правильность введённых данных или попробуйте позже.'
+      );
     }
   },
 
