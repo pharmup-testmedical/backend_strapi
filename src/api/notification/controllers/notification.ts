@@ -44,6 +44,46 @@ export default {
         }
     },
 
+    // По одной строке на каждый тип, у которого есть хотя бы одно
+    // уведомление (пустые категории не показываем — см. ТЗ), с последним
+    // уведомлением для превью и количеством непрочитанных в этой категории.
+    // Используется главным экраном "Уведомления" (список категорий).
+    async summary(ctx: any) {
+        try {
+            const userId = ctx.state.user.id
+
+            const results = await Promise.all(
+                NOTIFICATION_TYPES.map(async (type) => {
+                    const [latest] = await strapi.documents('api::notification.notification').findMany({
+                        filters: { user: userId, type },
+                        sort: ['createdAt:desc'],
+                        limit: 1,
+                    })
+                    if (!latest) return null
+
+                    const unreadCount = await strapi.documents('api::notification.notification').count({
+                        filters: { user: userId, type, isRead: false },
+                    })
+
+                    return {
+                        type,
+                        latest: {
+                            title: latest.title,
+                            body: latest.body,
+                            createdAt: latest.createdAt,
+                        },
+                        unreadCount,
+                    }
+                })
+            )
+
+            return ctx.send({ data: results.filter(Boolean) })
+        } catch (error: any) {
+            strapi.log.error(`[notification.summary] ${error.message}`)
+            return ctx.badRequest('Не удалось загрузить сводку по уведомлениям')
+        }
+    },
+
     async unreadCount(ctx: any) {
         try {
             const userId = ctx.state.user.id
@@ -86,8 +126,16 @@ export default {
     async markAllRead(ctx: any) {
         try {
             const userId = ctx.state.user.id
+            const { type } = ctx.query
+            if (type && !NOTIFICATION_TYPES.includes(type)) {
+                return ctx.badRequest('Недопустимый type')
+            }
+
+            const filters: any = { user: userId, isRead: false }
+            if (type) filters.type = type
+
             const unread = await strapi.documents('api::notification.notification').findMany({
-                filters: { user: userId, isRead: false },
+                filters,
             })
 
             await Promise.all(

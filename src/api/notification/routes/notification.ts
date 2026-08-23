@@ -14,6 +14,11 @@ export default {
         },
         {
             method: 'GET',
+            path: '/notifications/me/summary',
+            handler: 'notification.summary',
+        },
+        {
+            method: 'GET',
             path: '/notifications/me/unread-count',
             handler: 'notification.unreadCount',
         },
