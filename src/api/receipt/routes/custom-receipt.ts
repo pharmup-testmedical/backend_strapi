@@ -15,6 +15,11 @@ export default {
             handler: 'receipt.submitForTask',
         },
         {
+            method: 'POST',
+            path: '/receipts/submit-photo',
+            handler: 'receipt.submitPhoto',
+        },
+        {
             method: 'GET',
             path: '/receipts/me',
             handler: 'receipt.me',

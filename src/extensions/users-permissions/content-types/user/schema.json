@@ -141,6 +141,16 @@
       "relation": "oneToMany",
       "target": "api::notification.notification",
       "mappedBy": "user"
+    },
+    "receiptSubmissionMode": {
+      "type": "enumeration",
+      "enum": [
+        "qr",
+        "photo"
+      ],
+      "default": "qr",
+      "required": false,
+      "description": "qr — обычное сканирование QR-кода (по умолчанию); photo — альтернативный способ: фото фискального + товарного чека вручную, включается точечно конкретным пользователям"
     }
   }
 }

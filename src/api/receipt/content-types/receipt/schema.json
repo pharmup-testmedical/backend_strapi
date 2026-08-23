@@ -124,6 +124,26 @@
       "type": "string",
       "required": false,
       "description": "Адрес точки продажи из фискальных данных чека (доступно для oofd и wofd; в данных kofd адреса нет)"
+    },
+    "fiscalPhoto": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "description": "Фото фискального чека (альтернативный способ добавления чека — без QR-скана)"
+    },
+    "itemizedPhoto": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "description": "Фото товарного чека с расшифровкой позиций (альтернативный способ добавления чека)"
+    },
+    "submissionMethod": {
+      "type": "enumeration",
+      "enum": [
+        "photo"
+      ],
+      "required": false,
+      "description": "Заполняется только для чеков, отправленных через фото вместо QR-скана — обычные QR-чеки это поле не заполняют (остаётся null)"
     }
   }
 }

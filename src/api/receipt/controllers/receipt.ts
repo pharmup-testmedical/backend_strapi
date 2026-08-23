@@ -1,6 +1,7 @@
 /**
  * receipt controller
  */
+import { randomUUID } from 'crypto'
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
 import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet } from '../../../utils/google-sheets-sync'
@@ -115,6 +116,123 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       return ctx.badRequest(
         translateOfdError(error.message || '') || error.message || 'Ошибка при обработке чека'
       );
+    }
+  },
+
+  // Альтернативный способ добавления чека — без QR/ОФД, для точечно
+  // выбранных пользователей (user.receiptSubmissionMode === 'photo').
+  // Пользователь фотографирует фискальный + товарный чек и вручную
+  // выбирает товары; администратор потом визуально сверяет оба фото в
+  // Strapi admin и вручную переводит чек в manually_verified/rejected —
+  // дальше срабатывает уже существующий lifecycle (updateUserBalance,
+  // уведомление о кешбэке), ничего нового для этого писать не нужно.
+  async submitPhoto(ctx: any) {
+    try {
+      // Не доверяем только мобильному UI — даже если кто-то соберёт
+      // запрос вручную, без включённого флага на пользователе это должно
+      // быть запрещено.
+      if (ctx.state.user?.receiptSubmissionMode !== 'photo') {
+        return ctx.forbidden('Этот способ добавления чека для вас не включён');
+      }
+
+      const userId = ctx.state.user.id;
+      const { totalAmount, paymentMethod, claims: claimsRaw, platform, appVersion } = ctx.request.body;
+
+      const files = ctx.request.files || {};
+      const fiscalFile = Array.isArray(files.fiscalPhoto) ? files.fiscalPhoto[0] : files.fiscalPhoto;
+      const itemizedFile = Array.isArray(files.itemizedPhoto) ? files.itemizedPhoto[0] : files.itemizedPhoto;
+
+      if (!fiscalFile || !itemizedFile) {
+        return ctx.badRequest('Нужно приложить фото фискального и товарного чека');
+      }
+      if (!totalAmount || Number.isNaN(Number(totalAmount))) {
+        return ctx.badRequest('Укажите сумму чека');
+      }
+      if (!paymentMethod) {
+        return ctx.badRequest('Укажите способ оплаты');
+      }
+
+      let claims: { productId: string; quantity: number; unitPrice: number }[];
+      try {
+        claims = JSON.parse(claimsRaw);
+      } catch {
+        return ctx.badRequest('Некорректный формат позиций');
+      }
+      if (!Array.isArray(claims) || claims.length === 0) {
+        return ctx.badRequest('Добавьте хотя бы одну позицию');
+      }
+      for (const claim of claims) {
+        if (!claim.productId || !claim.quantity || !claim.unitPrice) {
+          return ctx.badRequest('У каждой позиции должны быть товар, количество и цена');
+        }
+      }
+
+      // Валидируем productId по реальному каталогу — не доверяем
+      // произвольным id вслепую (тот же принцип, что и в broadcast
+      // уведомлений).
+      const products = await strapi.documents('api::product.product').findMany({
+        filters: { documentId: { $in: claims.map((c) => c.productId) } },
+      });
+      if (products.length !== new Set(claims.map((c) => c.productId)).size) {
+        return ctx.badRequest('Один или несколько товаров не найдены в каталоге');
+      }
+
+      const uploadService = strapi.plugin('upload').service('upload');
+      const [fiscalUpload] = await uploadService.upload({ data: {}, files: fiscalFile });
+      const [itemizedUpload] = await uploadService.upload({ data: {}, files: itemizedFile });
+
+      const items: ReceiptItem[] = claims.map((claim) => {
+        const product = products.find((p: any) => p.documentId === claim.productId);
+        return {
+          __component: 'receipt-item.item',
+          name: product.canonicalName,
+          claimedProduct: { documentId: claim.productId },
+          verificationStatus: 'manual_review',
+          cashback: 0,
+          props: {
+            unitPrice: claim.unitPrice,
+            quantity: claim.quantity,
+            totalPrice: claim.unitPrice * claim.quantity,
+            measureUnit: 'шт',
+            department: '-',
+          },
+        };
+      });
+
+      const receipt = await strapi.documents('api::receipt.receipt').create({
+        data: {
+          qrData: `photo-${randomUUID()}`,
+          fiscalId: `photo-${randomUUID()}`,
+          verificationStatus: 'manual_review',
+          submissionMethod: 'photo',
+          date: new Date(),
+          totalAmount: Number(totalAmount),
+          taxAmount: 0,
+          taxRate: 0,
+          kktCode: 'photo',
+          kktSerialNumber: 'photo',
+          paymentMethod,
+          ofdType: 'oofd',
+          finalCashback: 0,
+          user: userId,
+          items,
+          fiscalPhoto: fiscalUpload.id,
+          itemizedPhoto: itemizedUpload.id,
+          platform: ['ios', 'android'].includes(platform) ? platform : null,
+          appVersion: typeof appVersion === 'string' && /^\d+\.\d+\.\d+$/.test(appVersion) ? appVersion : null,
+          publishedAt: new Date(),
+        },
+      });
+
+      strapi.log.info(`[submitPhoto] Created photo-submitted receipt ${receipt.documentId} for user ${userId}`);
+
+      return ctx.created({
+        message: 'Чек отправлен на проверку администратору',
+        receipt,
+      });
+    } catch (error: any) {
+      strapi.log.error(`[submitPhoto] Error for user ${ctx.state.user?.id}: ${error.message}`);
+      return ctx.badRequest(error.message || 'Не удалось отправить чек');
     }
   },
 

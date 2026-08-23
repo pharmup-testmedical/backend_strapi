@@ -916,6 +916,8 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     fiscalId: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    fiscalPhoto: Schema.Attribute.Media;
+    itemizedPhoto: Schema.Attribute.Media;
     items: Schema.Attribute.DynamicZone<
       ['receipt-item.product-claim', 'receipt-item.item']
     >;
@@ -939,6 +941,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     qrData: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    submissionMethod: Schema.Attribute.Enumeration<['photo']>;
     taxAmount: Schema.Attribute.Decimal & Schema.Attribute.Required;
     taxRate: Schema.Attribute.Decimal & Schema.Attribute.Required;
     totalAmount: Schema.Attribute.Decimal & Schema.Attribute.Required;
@@ -1596,6 +1599,8 @@ export interface PluginUsersPermissionsUser
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     receipts: Schema.Attribute.Relation<'oneToMany', 'api::receipt.receipt'>;
+    receiptSubmissionMode: Schema.Attribute.Enumeration<['qr', 'photo']> &
+      Schema.Attribute.DefaultTo<'qr'>;
     referralCode: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;

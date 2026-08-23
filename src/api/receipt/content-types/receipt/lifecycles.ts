@@ -93,11 +93,17 @@ async function handleReceiptLifecycle(
     // при каждом сохранении уже подтверждённого чека (approved -> approved
     // не должно спамить пользователя).
     if (!wasVerified && fullReceipt.finalCashback > 0) {
+      // Для чеков, отправленных фото (fiscalId — сгенерированный технический
+      // id, не настоящий номер), номер чека в тексте не показываем.
+      const body = fullReceipt.submissionMethod === 'photo'
+        ? `Вам начислен кэшбэк ${formatCurrency(fullReceipt.finalCashback)}`
+        : `Вам начислен кэшбэк ${formatCurrency(fullReceipt.finalCashback)} за чек №${fullReceipt.fiscalId}`;
+
       await createNotification({
         userDocumentId: userId,
         type: 'cashback',
         title: 'Начислен кэшбэк',
-        body: `Вам начислен кэшбэк ${formatCurrency(fullReceipt.finalCashback)} за чек №${fullReceipt.fiscalId}`,
+        body,
         action: 'cashback_history',
         entityId: fullReceipt.documentId,
       });
