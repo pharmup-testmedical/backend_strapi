@@ -32,6 +32,13 @@
       "component": "settings.support",
       "required": false
     },
+    "appVersion": {
+      "displayName": "appVersion",
+      "type": "component",
+      "repeatable": false,
+      "component": "settings.app-version",
+      "required": false
+    },
     "adminNotificationEmail": {
       "type": "email",
       "private": true

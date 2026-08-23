@@ -1,4 +1,6 @@
 import { updateUserBalance } from '../../../../utils/calculate-user-balance';
+import { createNotification } from '../../../../utils/create-notification';
+import { formatCurrency } from '../../../../utils/format-currency';
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'в ожидании',
@@ -34,7 +36,10 @@ export default {
             where,
             populate: ['requester']
         });
-        event.state = { previousRequesterDocumentId: record?.requester?.documentId };
+        event.state = {
+            previousRequesterDocumentId: record?.requester?.documentId,
+            previousVerificationStatus: record?.verificationStatus,
+        };
     },
 
     async afterUpdate(event: any) {
@@ -52,6 +57,32 @@ export default {
         const previousRequesterDocumentId = event.state?.previousRequesterDocumentId;
         if (previousRequesterDocumentId && previousRequesterDocumentId !== fullRequest.requester?.documentId) {
             await updateUserBalance(previousRequesterDocumentId);
+        }
+
+        // Уведомление только на реальном переходе в approved/rejected —
+        // повторное сохранение уже одобренной/отклонённой заявки не
+        // должно создавать новое уведомление каждый раз.
+        const previousVerificationStatus = event.state?.previousVerificationStatus;
+        const newStatus = fullRequest.verificationStatus;
+        const isFreshDecision =
+            previousVerificationStatus !== newStatus &&
+            (newStatus === 'approved' || newStatus === 'rejected');
+
+        if (isFreshDecision && fullRequest.requester?.documentId) {
+            const title = newStatus === 'approved' ? 'Заявка на вывод одобрена' : 'Заявка на вывод отклонена';
+            const body =
+                newStatus === 'approved'
+                    ? `Ваша заявка на вывод ${formatCurrency(fullRequest.amount)} одобрена и будет обработана`
+                    : `Ваша заявка на вывод ${formatCurrency(fullRequest.amount)} отклонена${fullRequest.rejectionReason ? `: ${fullRequest.rejectionReason}` : ''}`;
+
+            await createNotification({
+                userDocumentId: fullRequest.requester.documentId,
+                type: 'service',
+                title,
+                body,
+                action: 'withdrawal_status',
+                entityId: fullRequest.documentId,
+            });
         }
     },
 

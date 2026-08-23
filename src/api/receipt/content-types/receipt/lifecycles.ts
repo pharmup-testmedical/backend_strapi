@@ -2,29 +2,39 @@ import { verifiedStatuses } from '../../../../utils/update-scan-task-progress/ve
 import { updateUserBalance } from '../../../../utils/calculate-user-balance';
 import { checkReferralInvitationTask } from '../../../../utils/check-referral-invitation-task';
 import { updateScanFirstReceiptsTaskProgress } from '../../../../utils/update-scan-task-progress';
+import { createNotification } from '../../../../utils/create-notification';
+import { formatCurrency } from '../../../../utils/format-currency';
 
 export default {
   async afterCreate(event: any) {
     const { result } = event;
-    await handleReceiptLifecycle(result);
+    await handleReceiptLifecycle(result, { previousVerificationStatus: null });
   },
 
   // Если чек в админке переносят на другого пользователя, обычного
   // пересчёта баланса НОВОГО владельца недостаточно — у ПРЕЖНЕГО владельца
   // баланс останется завышенным на кэшбэк этого чека. Запоминаем прежнего
-  // владельца до обновления, чтобы пересчитать и его тоже.
+  // владельца до обновления, чтобы пересчитать и его тоже. Заодно
+  // запоминаем прежний verificationStatus — уведомление о начислении
+  // кэшбэка должно создаваться только при ПЕРВОМ переходе в подтверждённый
+  // статус, а не при каждом повторном сохранении уже подтверждённого чека.
   async beforeUpdate(event: any) {
     const { where } = event.params;
     const record = await strapi.db.query('api::receipt.receipt').findOne({
       where,
       populate: ['user'],
     });
-    event.state = { previousUserDocumentId: record?.user?.documentId };
+    event.state = {
+      previousUserDocumentId: record?.user?.documentId,
+      previousVerificationStatus: record?.verificationStatus,
+    };
   },
 
   async afterUpdate(event: any) {
     const { result } = event;
-    const currentUserDocumentId = await handleReceiptLifecycle(result);
+    const currentUserDocumentId = await handleReceiptLifecycle(result, {
+      previousVerificationStatus: event.state?.previousVerificationStatus ?? null,
+    });
 
     const previousUserDocumentId = event.state?.previousUserDocumentId;
     if (previousUserDocumentId && previousUserDocumentId !== currentUserDocumentId) {
@@ -52,7 +62,10 @@ export default {
   },
 };
 
-async function handleReceiptLifecycle(result: any) {
+async function handleReceiptLifecycle(
+  result: any,
+  { previousVerificationStatus }: { previousVerificationStatus: string | null }
+) {
   const fullReceipt = await strapi.documents('api::receipt.receipt').findOne({
     documentId: result.documentId,
     populate: ['user'],
@@ -69,9 +82,26 @@ async function handleReceiptLifecycle(result: any) {
   const isVerified = verifiedStatuses.includes(
     fullReceipt.verificationStatus as any
   );
+  const wasVerified = previousVerificationStatus
+    ? verifiedStatuses.includes(previousVerificationStatus as any)
+    : false;
 
   if (isVerified) {
     await checkReferralInvitationTask(userId);
+
+    // Уведомление только при ПЕРВОМ переходе в подтверждённый статус, не
+    // при каждом сохранении уже подтверждённого чека (approved -> approved
+    // не должно спамить пользователя).
+    if (!wasVerified && fullReceipt.finalCashback > 0) {
+      await createNotification({
+        userDocumentId: userId,
+        type: 'cashback',
+        title: 'Начислен кэшбэк',
+        body: `Вам начислен кэшбэк ${formatCurrency(fullReceipt.finalCashback)} за чек №${fullReceipt.fiscalId}`,
+        action: 'cashback_history',
+        entityId: fullReceipt.documentId,
+      });
+    }
   }
 
   if (result?.countsForScanTask) {

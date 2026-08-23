@@ -1,0 +1,69 @@
+{
+  "kind": "collectionType",
+  "collectionName": "notifications",
+  "info": {
+    "singularName": "notification",
+    "pluralName": "notifications",
+    "displayName": "Уведомление",
+    "description": "Уведомления пользователей внутри приложения (кэшбэк, акции, заказы, сервисные)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "cashback",
+        "promotion",
+        "order",
+        "service"
+      ],
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "body": {
+      "type": "text",
+      "required": true
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "isRead": {
+      "type": "boolean",
+      "default": false,
+      "required": true
+    },
+    "action": {
+      "type": "string",
+      "description": "Ключ действия для навигации в приложении (cashback_history, withdrawal_status, order, app_update...)"
+    },
+    "entityId": {
+      "type": "string",
+      "description": "Id связанной сущности (заявка на вывод, чек, заказ и т.п.), если применимо"
+    },
+    "deepLink": {
+      "type": "string",
+      "description": "Явная внешняя/универсальная ссылка — используется только когда action одного недостаточно"
+    },
+    "pushSent": {
+      "type": "boolean",
+      "default": false,
+      "required": true,
+      "description": "Задел под будущий push-слой — сейчас всегда false"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "notifications"
+    }
+  }
+}

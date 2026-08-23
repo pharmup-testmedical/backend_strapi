@@ -1,0 +1,28 @@
+{
+  "collectionName": "components_settings_app_versions",
+  "info": {
+    "displayName": "Версия приложения",
+    "description": ""
+  },
+  "options": {},
+  "attributes": {
+    "latestVersion": {
+      "type": "string",
+      "required": false,
+      "description": "Например 1.9.0 — для текста уведомления об обновлении"
+    },
+    "minSupportedVersion": {
+      "type": "string",
+      "required": false,
+      "description": "Задел на будущее для принудительного обновления — сейчас мобильное приложение это поле не проверяет"
+    },
+    "appStoreUrl": {
+      "type": "string",
+      "required": false
+    },
+    "playStoreUrl": {
+      "type": "string",
+      "required": false
+    }
+  }
+}

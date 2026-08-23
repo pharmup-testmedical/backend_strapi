@@ -676,6 +676,55 @@ export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
   };
 }
 
+export interface ApiNotificationNotification
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'notifications';
+  info: {
+    description: '\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u0439 \u0432\u043D\u0443\u0442\u0440\u0438 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F (\u043A\u044D\u0448\u0431\u044D\u043A, \u0430\u043A\u0446\u0438\u0438, \u0437\u0430\u043A\u0430\u0437\u044B, \u0441\u0435\u0440\u0432\u0438\u0441\u043D\u044B\u0435)';
+    displayName: '\u0423\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    action: Schema.Attribute.String;
+    body: Schema.Attribute.Text & Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    deepLink: Schema.Attribute.String;
+    entityId: Schema.Attribute.String;
+    image: Schema.Attribute.Media<'images'>;
+    isRead: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<false>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::notification.notification'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    pushSent: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<false>;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    type: Schema.Attribute.Enumeration<
+      ['cashback', 'promotion', 'order', 'service']
+    > &
+      Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiProductAliasProductAlias
   extends Struct.CollectionTypeSchema {
   collectionName: 'product_aliases';
@@ -1018,6 +1067,7 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
   };
   attributes: {
     adminNotificationEmail: Schema.Attribute.Email & Schema.Attribute.Private;
+    appVersion: Schema.Attribute.Component<'settings.app-version', false>;
     banking: Schema.Attribute.Component<'settings.banking', false> &
       Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
@@ -1531,6 +1581,10 @@ export interface PluginUsersPermissionsUser
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String & Schema.Attribute.Required;
+    notifications: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::notification.notification'
+    >;
     otherCity: Schema.Attribute.String;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
@@ -1588,6 +1642,7 @@ declare module '@strapi/strapi' {
       'api::completed-test.completed-test': ApiCompletedTestCompletedTest;
       'api::faq.faq': ApiFaqFaq;
       'api::main-page.main-page': ApiMainPageMainPage;
+      'api::notification.notification': ApiNotificationNotification;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product.product': ApiProductProduct;
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;

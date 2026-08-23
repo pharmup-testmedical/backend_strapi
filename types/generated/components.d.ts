@@ -132,6 +132,20 @@ export interface ReceiptItemProductClaim extends Struct.ComponentSchema {
   };
 }
 
+export interface SettingsAppVersion extends Struct.ComponentSchema {
+  collectionName: 'components_settings_app_versions';
+  info: {
+    description: '';
+    displayName: '\u0412\u0435\u0440\u0441\u0438\u044F \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F';
+  };
+  attributes: {
+    appStoreUrl: Schema.Attribute.String;
+    latestVersion: Schema.Attribute.String;
+    minSupportedVersion: Schema.Attribute.String;
+    playStoreUrl: Schema.Attribute.String;
+  };
+}
+
 export interface SettingsBanking extends Struct.ComponentSchema {
   collectionName: 'components_settings_bankings';
   info: {
@@ -297,6 +311,7 @@ declare module '@strapi/strapi' {
       'receipt-item.item': ReceiptItemItem;
       'receipt-item.item-props': ReceiptItemItemProps;
       'receipt-item.product-claim': ReceiptItemProductClaim;
+      'settings.app-version': SettingsAppVersion;
       'settings.banking': SettingsBanking;
       'settings.promo': SettingsPromo;
       'settings.support': SettingsSupport;

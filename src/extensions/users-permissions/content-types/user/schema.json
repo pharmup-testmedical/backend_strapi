@@ -135,6 +135,12 @@
     "phone": {
       "type": "string",
       "required": false
+    },
+    "notifications": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::notification.notification",
+      "mappedBy": "user"
     }
   }
 }

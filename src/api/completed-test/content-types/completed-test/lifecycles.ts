@@ -1,4 +1,6 @@
 import { updateUserBalance } from '../../../../utils/calculate-user-balance';
+import { createNotification } from '../../../../utils/create-notification';
+import { formatCurrency } from '../../../../utils/format-currency';
 
 const syncBalance = async (documentId: string) => {
     const fullCompletedTest = await strapi.documents('api::completed-test.completed-test').findOne({
@@ -13,8 +15,28 @@ const syncBalance = async (documentId: string) => {
 };
 
 export default {
+    // Уведомление только здесь, в afterCreate — прохождение теста
+    // создаёт новую запись каждый раз заново, но дублей на afterUpdate не
+    // ожидается (эта запись обычно не редактируется вручную с изменением
+    // cashback), поэтому отдельная дедупликация здесь избыточна.
     async afterCreate(event) {
         await syncBalance(event.result.documentId);
+
+        const fullCompletedTest = await strapi.documents('api::completed-test.completed-test').findOne({
+            documentId: event.result.documentId,
+            populate: ['user', 'test'],
+        });
+        if (fullCompletedTest?.user?.documentId && fullCompletedTest.cashback > 0) {
+            const testTitle = fullCompletedTest.test?.title
+            await createNotification({
+                userDocumentId: fullCompletedTest.user.documentId,
+                type: 'cashback',
+                title: 'Начислен бонус',
+                body: `Начислен бонус ${formatCurrency(fullCompletedTest.cashback)} за пройденный тест${testTitle ? ` «${testTitle}»` : ''}`,
+                action: 'cashback_history',
+                entityId: fullCompletedTest.documentId,
+            })
+        }
     },
 
     // Если тест в админке переносят на другого пользователя (user),

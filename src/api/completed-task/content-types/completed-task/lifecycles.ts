@@ -1,4 +1,6 @@
 import { updateUserBalance } from '../../../../utils/calculate-user-balance'
+import { createNotification } from '../../../../utils/create-notification'
+import { formatCurrency } from '../../../../utils/format-currency'
 
 // Задание влияет на account пользователя (см. calculateUserBalance),
 // поэтому любое изменение записи — не только её создание — должно
@@ -15,9 +17,34 @@ const syncBalance = async (documentId: string) => {
     }
 }
 
+const TASK_LABELS: Record<string, string> = {
+    sendInvitations: 'приглашение коллег',
+    leaveRating: 'оценку приложения',
+    scanFirstReceipts: 'сканирование первых чеков',
+}
+
 export default {
+    // Уведомление только здесь, в afterCreate — повторное выполнение того
+    // же задания уже блокируется выше по стеку (проверка existingCompletion
+    // в receipt-контроллере для submitForTask), так что дублей на afterUpdate
+    // можно не опасаться отдельной логикой.
     async afterCreate(event: any) {
         await syncBalance(event.result.documentId)
+
+        const record = await strapi.documents('api::completed-task.completed-task').findOne({
+            documentId: event.result.documentId,
+            populate: ['user'],
+        })
+        if (record?.user?.documentId && record.cashback > 0) {
+            await createNotification({
+                userDocumentId: record.user.documentId,
+                type: 'cashback',
+                title: 'Начислен бонус',
+                body: `Начислен бонус ${formatCurrency(record.cashback)} за ${TASK_LABELS[record.task] || 'выполненное задание'}`,
+                action: 'cashback_history',
+                entityId: record.documentId,
+            })
+        }
     },
 
     // Если задание в админке переносят на другого пользователя (user),
