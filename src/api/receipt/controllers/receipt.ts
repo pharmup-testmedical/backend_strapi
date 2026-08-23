@@ -238,6 +238,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
             finalItems: receipt.items || [],
             products,
             platform: receipt.platform,
+            appVersion: receipt.appVersion,
             consumerUrl: receipt.qrData,
             userEmail: receipt.user?.email,
           })
@@ -273,13 +274,22 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
     qrData,
     itemMappings,
     ofdType = 'oofd',
-    platform
+    platform,
+    appVersion
   } = ctx.request.body;
 
   // Разрешаем только известные значения — если приложение прислало что-то
   // неожиданное (или ничего не прислало, как старые версии до этого
   // обновления), просто не сохраняем платформу, а не роняем весь чек.
   ctx.request.body.platform = ['ios', 'android'].includes(platform) ? platform : null;
+
+  // Версия — просто строка вида "1.9.0" из DeviceInfo.getVersion() на
+  // мобильном; проверяем только формат и разумную длину, не привязываемся
+  // к конкретным значениям (иначе пришлось бы обновлять бэкенд под каждый
+  // релиз приложения).
+  ctx.request.body.appVersion = typeof appVersion === 'string' && /^\d+\.\d+\.\d+$/.test(appVersion)
+    ? appVersion
+    : null;
 
   if (!qrData || typeof qrData !== 'string') throw new Error('QR-код обязателен');
   if (!itemMappings || typeof itemMappings !== 'object' || Object.keys(itemMappings).length === 0) {
@@ -324,6 +334,7 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
     finalItems: items,
     products,
     platform: ctx.request.body.platform,
+    appVersion: ctx.request.body.appVersion,
     consumerUrl: qrData,
     userEmail: ctx.state.user?.email,
     strapi,
@@ -373,6 +384,7 @@ async function processAndCreateReceipt(
       finalCashback,
       countsForScanTask: isForTask,
       platform: context.ctx.request.body.platform,
+      appVersion: context.ctx.request.body.appVersion,
       organizationName: receiptData.organizationName,
       organizationBin: receiptData.organizationBin,
       organizationAddress: receiptData.organizationAddress,
@@ -660,6 +672,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       items,
       finalCashback,
       platform: ctx.request.body.platform,
+      appVersion: ctx.request.body.appVersion,
       organizationName: receiptData.organizationName,
       organizationBin: receiptData.organizationBin,
       organizationAddress: receiptData.organizationAddress,
@@ -672,6 +685,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
     finalItems: items,
     products: [],
     platform: ctx.request.body.platform,
+    appVersion: ctx.request.body.appVersion,
     consumerUrl: ctx.request.body.qrData,
     userEmail: ctx.state.user?.email,
     strapi,

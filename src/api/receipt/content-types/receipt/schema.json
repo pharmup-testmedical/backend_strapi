@@ -105,6 +105,11 @@
       ],
       "required": false
     },
+    "appVersion": {
+      "type": "string",
+      "required": false,
+      "description": "Версия мобильного приложения, с которой отправлен чек (например, 1.9.0)"
+    },
     "organizationName": {
       "type": "string",
       "required": false,

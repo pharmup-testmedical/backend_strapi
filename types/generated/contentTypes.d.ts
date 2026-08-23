@@ -905,6 +905,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    appVersion: Schema.Attribute.String;
     countsForScanTask: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;

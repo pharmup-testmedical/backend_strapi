@@ -62,6 +62,7 @@ interface ReceiptRowArgs {
     finalItems: any[]
     products: { documentId: string; canonicalName?: string }[]
     platform: string | null
+    appVersion: string | null
     consumerUrl: string
     userEmail?: string | null
 }
@@ -75,6 +76,7 @@ export const buildReceiptRows = ({
     finalItems,
     products,
     platform,
+    appVersion,
     consumerUrl,
     userEmail,
 }: ReceiptRowArgs): any[][] => {
@@ -116,6 +118,7 @@ export const buildReceiptRows = ({
             isCashbackItem ? item.cashback : '',
             receipt.paymentMethod,
             platform || '',
+            appVersion || '',
             consumerUrl,
             userEmail || '',
         ]
