@@ -77,7 +77,7 @@ export default {
 
             await createNotification({
                 userDocumentId: fullRequest.requester.documentId,
-                type: 'service',
+                type: 'cashback',
                 title,
                 body,
                 action: 'withdrawal_status',
