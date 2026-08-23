@@ -47,6 +47,7 @@ const getSheetsClient = () => {
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const formatDate = (date: Date) => `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
 const formatTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+const formatDateTime = (date: Date) => `${formatDate(date)} ${formatTime(date)}`
 
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
@@ -81,6 +82,12 @@ export const buildReceiptRows = ({
     userEmail,
 }: ReceiptRowArgs): any[][] => {
     const date = receipt.date instanceof Date ? receipt.date : new Date(receipt.date)
+    // Момент, когда чек реально попал в систему (сканирование в приложении)
+    // — отдельная величина от даты самой покупки на чеке (`date` выше).
+    const scannedAt = receipt.createdAt ? new Date(receipt.createdAt) : null
+    // Момент записи именно этой строки в таблицу — считаем один раз на чек,
+    // а не заново на каждую позицию, чтобы все строки одного чека совпадали.
+    const syncedAt = new Date()
     const { city, address } = deriveCityAndAddress(receiptData.organizationAddress)
     const rawItems = receiptData.items || []
 
@@ -121,6 +128,8 @@ export const buildReceiptRows = ({
             appVersion || '',
             consumerUrl,
             userEmail || '',
+            scannedAt ? formatDateTime(scannedAt) : '',
+            formatDateTime(syncedAt),
         ]
     })
 }
