@@ -47,7 +47,10 @@ const getSheetsClient = () => {
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const formatDate = (date: Date) => `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
 const formatTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
-const formatDateTime = (date: Date) => `${formatDate(date)} ${formatTime(date)}`
+// С секундами — иначе не видно разницу в пару секунд между сканированием
+// чека и фактической записью строки в таблицу (formatTime выше её скрывает).
+const formatDateTime = (date: Date) =>
+    `${formatDate(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
 
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
