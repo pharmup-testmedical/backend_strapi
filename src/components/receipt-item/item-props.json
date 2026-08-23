@@ -25,6 +25,11 @@
     "department": {
       "type": "string",
       "required": true
+    },
+    "ntin": {
+      "type": "string",
+      "required": false,
+      "description": "NTIN/GTIN товара из фискальных данных чека, если ОФД его передал"
     }
   }
 }

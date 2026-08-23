@@ -489,6 +489,7 @@ async function processReceiptItems(
         measureUnit: itemData.measureUnit,
         totalPrice: itemData.totalPrice,
         department: itemData.department,
+        ntin: itemData.ntin || null,
       };
 
       const matchedKey = Object.keys(itemMappings).find(
@@ -649,6 +650,7 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       measureUnit: itemData.measureUnit,
       totalPrice: itemData.totalPrice,
       department: itemData.department,
+      ntin: itemData.ntin || null,
     }
   }));
 
