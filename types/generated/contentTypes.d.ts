@@ -916,8 +916,6 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     fiscalId: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
-    fiscalPhoto: Schema.Attribute.Media;
-    itemizedPhoto: Schema.Attribute.Media;
     items: Schema.Attribute.DynamicZone<
       ['receipt-item.product-claim', 'receipt-item.item']
     >;
@@ -941,6 +939,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     qrData: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    receiptPhoto: Schema.Attribute.Media;
     submissionMethod: Schema.Attribute.Enumeration<['photo']>;
     taxAmount: Schema.Attribute.Decimal & Schema.Attribute.Required;
     taxRate: Schema.Attribute.Decimal & Schema.Attribute.Required;

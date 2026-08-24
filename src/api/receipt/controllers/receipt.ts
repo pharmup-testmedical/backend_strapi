@@ -1,7 +1,6 @@
 /**
  * receipt controller
  */
-import { randomUUID } from 'crypto'
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
 import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet } from '../../../utils/google-sheets-sync'
@@ -119,13 +118,19 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
     }
   },
 
-  // Альтернативный способ добавления чека — без QR/ОФД, для точечно
-  // выбранных пользователей (user.receiptSubmissionMode === 'photo').
-  // Пользователь фотографирует фискальный + товарный чек и вручную
-  // выбирает товары; администратор потом визуально сверяет оба фото в
-  // Strapi admin и вручную переводит чек в manually_verified/rejected —
-  // дальше срабатывает уже существующий lifecycle (updateUserBalance,
-  // уведомление о кешбэке), ничего нового для этого писать не нужно.
+  // Альтернативный способ добавления чека — без ручного ввода данных, для
+  // точечно выбранных пользователей (user.receiptSubmissionMode ===
+  // 'photo'). Мобильное приложение само находит QR на сфотографированном
+  // чеке (тем же способом, что и при выборе QR-фото из галереи в обычном
+  // сканере) и присылает сюда уже сам qrData/ofdType — здесь этот QR
+  // проходит РЕАЛЬНУЮ проверку через ОФД (parseReceiptByOfdType), как и в
+  // обычном флоу submit/submitForTask: реальные сумма/дата/ФП/ККМ и
+  // бесплатная защита от повторной отправки того же чека
+  // (checkForDuplicateReceipt). Единственное отличие от обычного флоу —
+  // позиции для кешбэка выбирает сам пользователь вручную (а не берутся
+  // из ОФД, где расшифровки товаров часто нет — в этом и есть причина
+  // существования этого способа), и админ вручную подтверждает чек в
+  // Strapi admin, глядя на приложенное фото.
   async submitPhoto(ctx: any) {
     try {
       // Не доверяем только мобильному UI — даже если кто-то соберёт
@@ -136,20 +141,16 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       }
 
       const userId = ctx.state.user.id;
-      const { totalAmount, paymentMethod, claims: claimsRaw, platform, appVersion } = ctx.request.body;
+      const { qrData, ofdType, claims: claimsRaw, platform, appVersion } = ctx.request.body;
 
       const files = ctx.request.files || {};
-      const fiscalFile = Array.isArray(files.fiscalPhoto) ? files.fiscalPhoto[0] : files.fiscalPhoto;
-      const itemizedFile = Array.isArray(files.itemizedPhoto) ? files.itemizedPhoto[0] : files.itemizedPhoto;
+      const photoFile = Array.isArray(files.photo) ? files.photo[0] : files.photo;
 
-      if (!fiscalFile || !itemizedFile) {
-        return ctx.badRequest('Нужно приложить фото фискального и товарного чека');
+      if (!photoFile) {
+        return ctx.badRequest('Приложите фото чека');
       }
-      if (!totalAmount || Number.isNaN(Number(totalAmount))) {
-        return ctx.badRequest('Укажите сумму чека');
-      }
-      if (!paymentMethod) {
-        return ctx.badRequest('Укажите способ оплаты');
+      if (!qrData || !ofdType) {
+        return ctx.badRequest('Не удалось определить QR-код чека');
       }
 
       let claims: { productId: string; quantity: number; unitPrice: number }[];
@@ -177,9 +178,17 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         return ctx.badRequest('Один или несколько товаров не найдены в каталоге');
       }
 
+      const receiptData = await parseReceiptByOfdType(qrData, ofdType, { strapi });
+
+      await checkForDuplicateReceipt({ qrData }, receiptData);
+
+      const receiptValidDays = await getReceiptValidDays();
+      if (!checkTimeLimit(receiptData.date, receiptValidDays)) {
+        return ctx.badRequest(`Чек превысил срок годности в ${receiptValidDays} дней.`);
+      }
+
       const uploadService = strapi.plugin('upload').service('upload');
-      const [fiscalUpload] = await uploadService.upload({ data: {}, files: fiscalFile });
-      const [itemizedUpload] = await uploadService.upload({ data: {}, files: itemizedFile });
+      const [photoUpload] = await uploadService.upload({ data: {}, files: photoFile });
 
       const items: ReceiptItem[] = claims.map((claim) => {
         const product = products.find((p: any) => p.documentId === claim.productId);
@@ -201,23 +210,25 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
 
       const receipt = await strapi.documents('api::receipt.receipt').create({
         data: {
-          qrData: `photo-${randomUUID()}`,
-          fiscalId: `photo-${randomUUID()}`,
+          qrData,
+          fiscalId: receiptData.fiscalId,
           verificationStatus: 'manual_review',
           submissionMethod: 'photo',
-          date: new Date(),
-          totalAmount: Number(totalAmount),
-          taxAmount: 0,
-          taxRate: 0,
-          kktCode: 'photo',
-          kktSerialNumber: 'photo',
-          paymentMethod,
-          ofdType: 'oofd',
+          date: receiptData.date instanceof Date ? receiptData.date.toISOString() : receiptData.date,
+          totalAmount: receiptData.totalAmount,
+          taxAmount: receiptData.taxAmount,
+          taxRate: receiptData.taxRate,
+          kktCode: receiptData.kktCode,
+          kktSerialNumber: receiptData.kktSerialNumber,
+          paymentMethod: receiptData.paymentMethod,
+          ofdType,
           finalCashback: 0,
           user: userId,
           items,
-          fiscalPhoto: fiscalUpload.id,
-          itemizedPhoto: itemizedUpload.id,
+          receiptPhoto: photoUpload.id,
+          organizationName: receiptData.organizationName,
+          organizationBin: receiptData.organizationBin,
+          organizationAddress: receiptData.organizationAddress,
           platform: ['ios', 'android'].includes(platform) ? platform : null,
           appVersion: typeof appVersion === 'string' && /^\d+\.\d+\.\d+$/.test(appVersion) ? appVersion : null,
           publishedAt: new Date(),
@@ -232,7 +243,9 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       });
     } catch (error: any) {
       strapi.log.error(`[submitPhoto] Error for user ${ctx.state.user?.id}: ${error.message}`);
-      return ctx.badRequest(error.message || 'Не удалось отправить чек');
+      return ctx.badRequest(
+        translateOfdError(error.message || '') || error.message || 'Не удалось отправить чек'
+      );
     }
   },
 
