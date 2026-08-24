@@ -89,7 +89,8 @@ export default factories.createCoreController('api::test.test', ({ strapi }) => 
                     user: {
                         id: userId
                     },
-                    cashback
+                    cashback,
+                    answers: result.questionResults
                 },
                 populate: {
                     test: true,

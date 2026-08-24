@@ -572,6 +572,7 @@ export interface ApiCompletedTestCompletedTest
     draftAndPublish: false;
   };
   attributes: {
+    answers: Schema.Attribute.JSON;
     cashback: Schema.Attribute.Decimal &
       Schema.Attribute.Required &
       Schema.Attribute.SetMinMax<

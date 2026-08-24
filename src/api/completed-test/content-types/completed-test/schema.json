@@ -26,6 +26,11 @@
       "type": "decimal",
       "required": true,
       "min": 0
+    },
+    "answers": {
+      "type": "json",
+      "required": false,
+      "description": "Ответы пользователя по каждому вопросу на момент прохождения: [{questionIndex, userAnswer, correctAnswer, correct}]"
     }
   }
 }
