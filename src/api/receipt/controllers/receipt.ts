@@ -153,7 +153,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         return ctx.badRequest('Не удалось определить QR-код чека');
       }
 
-      let claims: { productId: string; quantity: number; unitPrice: number }[];
+      let claims: { productId: string; quantity: number; unitPrice: number; itemizedPosition?: number }[];
       try {
         claims = JSON.parse(claimsRaw);
       } catch {
@@ -204,6 +204,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
             totalPrice: claim.unitPrice * claim.quantity,
             measureUnit: 'шт',
             department: '-',
+            itemizedPosition: claim.itemizedPosition || null,
           },
         };
       });

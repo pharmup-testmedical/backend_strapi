@@ -30,6 +30,11 @@
       "type": "string",
       "required": false,
       "description": "NTIN/GTIN товара из фискальных данных чека, если ОФД его передал"
+    },
+    "itemizedPosition": {
+      "type": "integer",
+      "required": false,
+      "description": "Номер позиции в товарном чеке (для фото-флоу) — чтобы админ быстро находил нужную строку на фото, не искал по названию"
     }
   }
 }

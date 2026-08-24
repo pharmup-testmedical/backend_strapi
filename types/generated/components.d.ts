@@ -111,6 +111,7 @@ export interface ReceiptItemItemProps extends Struct.ComponentSchema {
   };
   attributes: {
     department: Schema.Attribute.String & Schema.Attribute.Required;
+    itemizedPosition: Schema.Attribute.Integer;
     measureUnit: Schema.Attribute.String & Schema.Attribute.Required;
     ntin: Schema.Attribute.String;
     quantity: Schema.Attribute.Decimal & Schema.Attribute.Required;
