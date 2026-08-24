@@ -187,17 +187,6 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         return ctx.badRequest(`Чек превысил срок годности в ${receiptValidDays} дней.`);
       }
 
-      // Пользователь может заявить не все позиции чека (например, только
-      // часть покупки участвует в кешбэке) — но заявленная сумма не может
-      // ПРЕВЫШАТЬ реальную сумму чека, это уже явная ошибка или попытка
-      // накрутки. Полной сверки с товарным чеком нет (это фото не
-      // распознаётся автоматически), но такая проверка уже отсекает
-      // очевидно некорректные заявки без какого-либо OCR.
-      const claimsTotal = claims.reduce((sum, c) => sum + c.unitPrice * c.quantity, 0);
-      if (claimsTotal > receiptData.totalAmount) {
-        return ctx.badRequest('Сумма выбранных товаров превышает сумму чека');
-      }
-
       const uploadService = strapi.plugin('upload').service('upload');
       const [photoUpload] = await uploadService.upload({ data: {}, files: photoFile });
 
