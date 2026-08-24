@@ -190,6 +190,14 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       const uploadService = strapi.plugin('upload').service('upload');
       const [photoUpload] = await uploadService.upload({ data: {}, files: photoFile });
 
+      // Кешбэк по каждой позиции считаем из ставки товара в каталоге —
+      // это просто арифметика, а не решение, которое должен принимать
+      // админ. item.cashback хранится ЗА ЕДИНИЦУ товара (та же
+      // конвенция, что и в обычном QR-флоу, см. processClaimedItem —
+      // умножение на количество происходит отдельно, при подсчёте
+      // итога). Итоговая сумма чека всё равно требует подтверждения
+      // админом (verificationStatus остаётся manual_review), но ему уже
+      // не нужно вручную высчитывать сумму с нуля — только проверить.
       const items: ReceiptItem[] = claims.map((claim) => {
         const product = products.find((p: any) => p.documentId === claim.productId);
         return {
@@ -197,7 +205,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           name: product.canonicalName,
           claimedProduct: { documentId: claim.productId },
           verificationStatus: 'manual_review',
-          cashback: 0,
+          cashback: product.cashbackAmount || 0,
           props: {
             unitPrice: claim.unitPrice,
             quantity: claim.quantity,
@@ -208,6 +216,14 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           },
         };
       });
+      // calculateFinalCashback() здесь не подходит — она считает только
+      // уже подтверждённые статусы (auto_verified_*), а у фото-флоу
+      // всегда manual_review. Суммируем сами по той же формуле
+      // (кешбэк за единицу × количество), как подсказку админу.
+      const suggestedCashback = items.reduce(
+        (sum, item) => sum + item.cashback * item.props.quantity,
+        0
+      );
 
       const receipt = await strapi.documents('api::receipt.receipt').create({
         data: {
@@ -223,7 +239,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           kktSerialNumber: receiptData.kktSerialNumber,
           paymentMethod: receiptData.paymentMethod,
           ofdType,
-          finalCashback: 0,
+          finalCashback: suggestedCashback,
           user: userId,
           items,
           receiptPhoto: photoUpload.id,
