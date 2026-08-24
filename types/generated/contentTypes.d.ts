@@ -590,6 +590,9 @@ export interface ApiCompletedTestCompletedTest
       'api::completed-test.completed-test'
     > &
       Schema.Attribute.Private;
+    passed: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
     publishedAt: Schema.Attribute.DateTime;
     test: Schema.Attribute.Relation<'oneToOne', 'api::test.test'>;
     updatedAt: Schema.Attribute.DateTime;

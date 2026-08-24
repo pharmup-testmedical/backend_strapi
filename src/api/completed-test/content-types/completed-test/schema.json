@@ -31,6 +31,12 @@
       "type": "json",
       "required": false,
       "description": "Ответы пользователя по каждому вопросу на момент прохождения: [{questionIndex, userAnswer, correctAnswer, correct}]"
+    },
+    "passed": {
+      "type": "boolean",
+      "required": true,
+      "default": true,
+      "description": "У теста только одна попытка — эта запись создаётся и на провальной попытке тоже (cashback:0, passed:false), чтобы заблокировать повтор"
     }
   }
 }

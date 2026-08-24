@@ -63,24 +63,21 @@ export default factories.createCoreController('api::test.test', ({ strapi }) => 
             })
 
             if (existingCompletion) {
-                throw new Error('Вы уже прошли этот тест')
+                throw new Error('У этого теста только одна попытка — вы её уже использовали')
             }
 
             // Calculate score by comparing answers with correctAnswer field using question index
             const result = calculateTestScore(test.questions, answers)
 
-            // Determine if passed (e.g., 80% correct)
-            const passingScore = 100 // 80% to pass
+            const passingScore = 100 // все ответы должны быть верными
             const passed = result.percentage >= passingScore
 
-            if (!passed) {
-                throw new Error(`Тест не пройден. Правильных ответов: ${result.correctCount} из ${result.totalCount} (${result.percentage}%)`)
-            }
+            // Get the test's cashback amount — только при успешном прохождении
+            const cashback = passed ? (test.cashback || 0) : 0
 
-            // Get the test's cashback amount
-            const cashback = test.cashback || 0
-
-            // Create completed test record
+            // Только одна попытка на тест: запись создаётся и при провале
+            // тоже (cashback: 0, passed: false) — именно эта запись и
+            // блокирует повторную попытку через existingCompletion выше.
             const completedTest = await strapi.documents('api::completed-test.completed-test').create({
                 data: {
                     test: {
@@ -90,6 +87,7 @@ export default factories.createCoreController('api::test.test', ({ strapi }) => 
                         id: userId
                     },
                     cashback,
+                    passed,
                     answers: result.questionResults
                 },
                 populate: {
@@ -97,6 +95,11 @@ export default factories.createCoreController('api::test.test', ({ strapi }) => 
                     user: true
                 }
             })
+
+            if (!passed) {
+                strapi.log.info(`User ${userId} failed test ${testId} with score ${result.percentage}% — attempt used, no retry allowed`)
+                return ctx.badRequest(`Тест не пройден. Правильных ответов: ${result.correctCount} из ${result.totalCount} (${result.percentage}%). Попытка уже использована.`)
+            }
 
             strapi.log.info(`User ${userId} successfully completed test ${testId} with score ${result.percentage}% and earned ${cashback} cashback`)
 
