@@ -722,7 +722,15 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
         }
 
         if ((text.includes('Фискалдық белгі') || text.includes('Фискальный признак')) && !result.fiscalId) {
-            const fiscalMatch = text.match(/(\d{12,})/)
+            // На некоторых чеках сама метка занимает всю ширину строки, и
+            // номер переносится на следующую строку (та же ситуация, что
+            // уже обработана ниже для ИТОГО/БАРЛЫҒЫ) — если на строке с
+            // меткой цифр нет, смотрим следующую строку.
+            let fiscalMatch = text.match(/(\d{12,})/)
+            if (!fiscalMatch && i + 1 < textLines.length) {
+                const nextLine = textLines[i + 1].trim()
+                fiscalMatch = nextLine.match(/(\d{12,})/)
+            }
             if (fiscalMatch) {
                 result.fiscalId = fiscalMatch[1]
             }
