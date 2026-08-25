@@ -9,5 +9,10 @@ export default {
             path: '/products/available',
             handler: 'product.available',
         },
+        {
+            method: 'GET',
+            path: '/products/catalog',
+            handler: 'product.catalog',
+        },
     ],
 };
