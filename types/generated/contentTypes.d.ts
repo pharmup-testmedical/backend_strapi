@@ -842,6 +842,7 @@ export interface ApiProductSupplierProductSupplier
     publishedAt: Schema.Attribute.DateTime;
     supplier: Schema.Attribute.Relation<'manyToOne', 'api::supplier.supplier'>;
     supplierArticle: Schema.Attribute.String;
+    supplierName: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

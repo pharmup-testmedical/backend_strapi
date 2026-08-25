@@ -11,6 +11,11 @@
     "draftAndPublish": false
   },
   "attributes": {
+    "supplierName": {
+      "type": "string",
+      "required": false,
+      "description": "Название поставщика, автоматически подтягивается из Supplier.name при создании/изменении записи (lifecycles.ts) — используется как отображаемое имя записи в связях. Не редактировать вручную, значение перезапишется"
+    },
     "product": {
       "type": "relation",
       "relation": "manyToOne",
