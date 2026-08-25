@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "suppliers",
+  "info": {
+    "singularName": "supplier",
+    "pluralName": "suppliers",
+    "displayName": "Поставщик",
+    "description": "Продавец товара (не путать с Brand — производителем). Один товар может продаваться несколькими поставщиками через ProductSupplier"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true,
+      "description": "Выключается, если поставщик временно недоступен для заказа (например не оплатил размещение) — товары при этом не удаляются"
+    },
+    "productSuppliers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-supplier.product-supplier",
+      "mappedBy": "supplier"
+    }
+  }
+}

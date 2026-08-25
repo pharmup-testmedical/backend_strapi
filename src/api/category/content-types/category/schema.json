@@ -20,6 +20,17 @@
       "relation": "oneToMany",
       "target": "api::product.product",
       "mappedBy": "category"
+    },
+    "group": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::group.group",
+      "inversedBy": "categories"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true
     }
   }
 }

@@ -453,9 +453,13 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    group: Schema.Attribute.Relation<'manyToOne', 'api::group.group'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -635,6 +639,41 @@ export interface ApiFaqFaq extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiGroupGroup extends Struct.CollectionTypeSchema {
+  collectionName: 'groups';
+  info: {
+    description: '\u0412\u0435\u0440\u0445\u043D\u0438\u0439 \u0443\u0440\u043E\u0432\u0435\u043D\u044C \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0430 (\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \u00AB\u041C\u0435\u0434\u0438\u0446\u0438\u043D\u0441\u043A\u0430\u044F \u0442\u0435\u0445\u043D\u0438\u043A\u0430\u00BB), \u043E\u0431\u044A\u0435\u0434\u0438\u043D\u044F\u0435\u0442 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0439';
+    displayName: '\u0413\u0440\u0443\u043F\u043F\u0430 \u0442\u043E\u0432\u0430\u0440\u043E\u0432';
+    pluralName: 'groups';
+    singularName: 'group';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    categories: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::category.category'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::group.group'> &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiMainPageMainPage extends Struct.SingleTypeSchema {
   collectionName: 'main_pages';
   info: {
@@ -772,6 +811,43 @@ export interface ApiProductAliasProductAlias
   };
 }
 
+export interface ApiProductSupplierProductSupplier
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'product_suppliers';
+  info: {
+    description: '\u041A\u043E\u043D\u043A\u0440\u0435\u0442\u043D\u043E\u0435 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0442\u043E\u0432\u0430\u0440\u0430 \u043E\u0442 \u043A\u043E\u043D\u043A\u0440\u0435\u0442\u043D\u043E\u0433\u043E \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430 \u2014 \u0441\u0432\u043E\u044F \u0446\u0435\u043D\u0430, \u0430\u0440\u0442\u0438\u043A\u0443\u043B, \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C. \u041E\u0434\u0438\u043D Product \u043C\u043E\u0436\u0435\u0442 \u0438\u043C\u0435\u0442\u044C \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0442\u0430\u043A\u0438\u0445 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0439 \u043E\u0442 \u0440\u0430\u0437\u043D\u044B\u0445 Supplier';
+    displayName: '\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430';
+    pluralName: 'product-suppliers';
+    singularName: 'product-supplier';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    cashbackAmount: Schema.Attribute.Decimal;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product-supplier.product-supplier'
+    > &
+      Schema.Attribute.Private;
+    price: Schema.Attribute.Decimal;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
+    publishedAt: Schema.Attribute.DateTime;
+    supplier: Schema.Attribute.Relation<'manyToOne', 'api::supplier.supplier'>;
+    supplierArticle: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiProductProduct extends Struct.CollectionTypeSchema {
   collectionName: 'products';
   info: {
@@ -784,6 +860,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    article: Schema.Attribute.String & Schema.Attribute.Unique;
     barcode: Schema.Attribute.String &
       Schema.Attribute.Unique &
       Schema.Attribute.SetMinMaxLength<{
@@ -827,6 +904,10 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     productAliases: Schema.Attribute.Relation<
       'oneToMany',
       'api::product-alias.product-alias'
+    >;
+    productSuppliers: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product-supplier.product-supplier'
     >;
     publishedAt: Schema.Attribute.DateTime;
     unpublishDate: Schema.Attribute.Date;
@@ -968,6 +1049,44 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       ]
     > &
       Schema.Attribute.Required;
+  };
+}
+
+export interface ApiSupplierSupplier extends Struct.CollectionTypeSchema {
+  collectionName: 'suppliers';
+  info: {
+    description: '\u041F\u0440\u043E\u0434\u0430\u0432\u0435\u0446 \u0442\u043E\u0432\u0430\u0440\u0430 (\u043D\u0435 \u043F\u0443\u0442\u0430\u0442\u044C \u0441 Brand \u2014 \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u0435\u043C). \u041E\u0434\u0438\u043D \u0442\u043E\u0432\u0430\u0440 \u043C\u043E\u0436\u0435\u0442 \u043F\u0440\u043E\u0434\u0430\u0432\u0430\u0442\u044C\u0441\u044F \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u0438\u043C\u0438 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430\u043C\u0438 \u0447\u0435\u0440\u0435\u0437 ProductSupplier';
+    displayName: '\u041F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A';
+    pluralName: 'suppliers';
+    singularName: 'supplier';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::supplier.supplier'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    productSuppliers: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product-supplier.product-supplier'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1650,13 +1769,16 @@ declare module '@strapi/strapi' {
       'api::completed-task.completed-task': ApiCompletedTaskCompletedTask;
       'api::completed-test.completed-test': ApiCompletedTestCompletedTest;
       'api::faq.faq': ApiFaqFaq;
+      'api::group.group': ApiGroupGroup;
       'api::main-page.main-page': ApiMainPageMainPage;
       'api::notification.notification': ApiNotificationNotification;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
+      'api::product-supplier.product-supplier': ApiProductSupplierProductSupplier;
       'api::product.product': ApiProductProduct;
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
       'api::public-information.public-information': ApiPublicInformationPublicInformation;
       'api::receipt.receipt': ApiReceiptReceipt;
+      'api::supplier.supplier': ApiSupplierSupplier;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
       'api::test.test': ApiTestTest;
       'api::website-setup.website-setup': ApiWebsiteSetupWebsiteSetup;

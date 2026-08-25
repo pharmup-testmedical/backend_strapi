@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "product_suppliers",
+  "info": {
+    "singularName": "product-supplier",
+    "pluralName": "product-suppliers",
+    "displayName": "Предложение поставщика",
+    "description": "Конкретное предложение товара от конкретного поставщика — своя цена, артикул, доступность. Один Product может иметь несколько таких предложений от разных Supplier"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "productSuppliers"
+    },
+    "supplier": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::supplier.supplier",
+      "inversedBy": "productSuppliers"
+    },
+    "supplierArticle": {
+      "type": "string",
+      "required": false,
+      "description": "Артикул этого товара в системе конкретного поставщика (не путать с Product.article — внутренним артикулом PharmUp)"
+    },
+    "price": {
+      "type": "decimal",
+      "required": false
+    },
+    "cashbackAmount": {
+      "type": "decimal",
+      "required": false,
+      "description": "Кешбэк именно от этого поставщика, если отличается от Product.cashbackAmount. Не используется текущим флоу сканирования чеков — тот по-прежнему берёт кешбэк с Product"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "required": true,
+      "description": "Доступно ли это предложение для заказа сейчас (остаток, оплата размещения поставщиком и т.п.)"
+    }
+  }
+}
