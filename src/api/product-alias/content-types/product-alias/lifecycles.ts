@@ -21,23 +21,36 @@ interface Receipt {
     }>;
 }
 
-// Численные id строк product из raw data.product ({ set: [{id}, ...] }) —
-// Content Manager/Document Service присылает связь именно в этой форме, не
-// плоским полем. Из-за draftAndPublish на Product один и тот же товар может
-// быть представлен ДВУМЯ id (черновик + опубликованный), поэтому набор
-// нормализуется в document_id, а не сравнивается по голому id напрямую.
-function extractProductIds(data: any): number[] {
-    const set = data?.product?.set;
-    if (!Array.isArray(set)) return [];
-    return set.map((entry: any) => entry?.id).filter((id: any): id is number => typeof id === 'number');
-}
+// Достаёт document_id целевого товара из сырого data.product. Форма связи
+// зависит от того, кто инициирует сохранение: собственные скрипты обычно
+// шлют { set: [...] }, а РЕАЛЬНЫЙ фронтенд Content Manager — { connect: [...] }
+// (даже при первом назначении связи на новой записи, не только при
+// добавлении к уже существующей). Проверяем обе формы — раньше хук
+// проверял только set и потому молча пропускал connect: подтверждено
+// эмпирически (тестом на реальном document-manager.create()) и живым
+// дублем, созданным вручную через Content Manager в проде. Из-за
+// draftAndPublish на Product один и тот же товар может быть представлен
+// ДВУМЯ численными id (черновик + опубликованный) — сравниваем по
+// document_id, а не по голому id, чтобы это не имело значения.
+async function resolveProductDocumentIdFromData(data: any): Promise<string | null> {
+    const rel = data?.product;
+    if (!rel) return null;
 
-// Возвращает document_id товара по любому из его численных id (черновик или
-// опубликованный — не важно, обе строки делят один document_id).
-async function resolveProductDocumentId(productIds: number[]): Promise<string | null> {
-    if (productIds.length === 0) return null;
+    const entries: Array<{ id?: number; documentId?: string }> = Array.isArray(rel.set)
+        ? rel.set
+        : Array.isArray(rel.connect)
+            ? rel.connect
+            : [];
+    if (entries.length === 0) return null;
+
+    const withDocumentId = entries.find((e) => typeof e?.documentId === 'string');
+    if (withDocumentId?.documentId) return withDocumentId.documentId;
+
+    const ids = entries.map((e) => e?.id).filter((id): id is number => typeof id === 'number');
+    if (ids.length === 0) return null;
+
     const product = await strapi.db.query('api::product.product').findOne({
-        where: { id: { $in: productIds } },
+        where: { id: { $in: ids } },
         select: ['documentId'],
     });
     return product?.documentId ?? null;
@@ -95,8 +108,7 @@ export default {
         const { data } = event.params || {};
         if (!data?.alternativeName) return;
 
-        const productIds = extractProductIds(data);
-        const productDocumentId = await resolveProductDocumentId(productIds);
+        const productDocumentId = await resolveProductDocumentIdFromData(data);
         if (!productDocumentId) return; // без товара сравнивать не с чем
 
         await assertNoDuplicateAlias({
@@ -149,13 +161,8 @@ export default {
         // предсуществующем дубле, вставленном в обход хука.
         if (data?.alternativeName !== undefined || data?.product !== undefined) {
             const effectiveAlternativeName = data?.alternativeName ?? currentAlias.alternativeName;
-            const effectiveProductIds = data?.product
-                ? extractProductIds(data)
-                : currentAlias.product
-                    ? [currentAlias.product.id]
-                    : [];
             const effectiveProductDocumentId = data?.product
-                ? await resolveProductDocumentId(effectiveProductIds)
+                ? await resolveProductDocumentIdFromData(data)
                 : currentAlias.product?.documentId ?? null;
 
             if (effectiveAlternativeName && effectiveProductDocumentId) {
