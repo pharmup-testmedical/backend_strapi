@@ -23,6 +23,12 @@
         "index": true
       }
     },
+    "normalizedName": {
+      "type": "string",
+      "pluginOptions": {
+        "index": true
+      }
+    },
     "ntin": {
       "type": "string",
       "required": false,

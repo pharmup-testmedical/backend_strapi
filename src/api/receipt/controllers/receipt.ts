@@ -4,6 +4,8 @@
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
 import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet } from '../../../utils/google-sheets-sync'
+import { resolveOrganizationCity } from '../../../utils/resolve-organization-city'
+import { normalizeAliasName } from '../../../utils/normalize-alias-name'
 
 // ==================== EXPORTED TYPES ====================
 export type ReceiptVerificationStatus =
@@ -225,6 +227,11 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
         0
       );
 
+      const { organizationCity, citySource } = await resolveOrganizationCity(
+        strapi,
+        receiptData.organizationAddress
+      );
+
       const receipt = await strapi.documents('api::receipt.receipt').create({
         data: {
           qrData,
@@ -246,6 +253,8 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           organizationName: receiptData.organizationName,
           organizationBin: receiptData.organizationBin,
           organizationAddress: receiptData.organizationAddress,
+          organizationCity,
+          citySource,
           platform: ['ios', 'android'].includes(platform) ? platform : null,
           appVersion: typeof appVersion === 'string' && /^\d+\.\d+\.\d+$/.test(appVersion) ? appVersion : null,
           publishedAt: new Date(),
@@ -513,6 +522,11 @@ async function processAndCreateReceipt(
 
   const finalCashback = calculateFinalCashback(items);
 
+  const { organizationCity, citySource } = await resolveOrganizationCity(
+    strapi,
+    receiptData.organizationAddress
+  );
+
   const receipt = await strapi.documents('api::receipt.receipt').create({
     data: {
       oofd_uid: receiptData.oofd_uid,
@@ -536,6 +550,8 @@ async function processAndCreateReceipt(
       organizationName: receiptData.organizationName,
       organizationBin: receiptData.organizationBin,
       organizationAddress: receiptData.organizationAddress,
+      organizationCity,
+      citySource,
       publishedAt: new Date()
     }
   });
@@ -677,16 +693,27 @@ async function processReceiptItems(
   return { items, hasVerified, hasRejected, hasNonVerified };
 }
 
+// Единая точка поиска существующего псевдонима — сравнение по
+// нормализованному названию (регистр, пробелы, латиница/кириллица-двойники
+// не считаются различием), а не по точному совпадению строки. Раньше поиск
+// был продублирован в трёх местах и местами сравнивал только через
+// .toLowerCase(), из-за чего "Comfort" (латиница) и "Соmfort" (кириллица)
+// считались разными псевдонимами и на каждый новый чек создавался дубль.
+function findExistingAlias(product: any, itemName: string): any {
+  const productAliases = product.productAliases || [];
+  const normalizedItemName = normalizeAliasName(itemName);
+  return productAliases.find(
+    (alias: any) => normalizeAliasName(alias.alternativeName) === normalizedItemName
+  );
+}
+
 async function findOrCreateAliasByName(
   itemName: string,
   ntin: string | null | undefined,
   product: any,
   defaultStatusForNew: 'unverified' | 'verified'
 ) {
-  const productAliases = product.productAliases || [];
-  const existing = productAliases.find(
-    (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-  );
+  const existing = findExistingAlias(product, itemName);
 
   if (existing) {
     // Keep the ntin on record up to date so an admin reviewing this alias
@@ -703,6 +730,7 @@ async function findOrCreateAliasByName(
   return strapi.documents('api::product-alias.product-alias').create({
     data: {
       alternativeName: itemName,
+      normalizedName: normalizeAliasName(itemName),
       ntin: ntin || null,
       verificationStatus: defaultStatusForNew,
       product: { documentId: product.documentId },
@@ -733,9 +761,7 @@ async function processClaimedItem(itemName: string, props: any, product: any, nt
       // (e.g. the manufacturer prints multiple NTIN variants for the same
       // product) instead of forcing every future receipt with this name
       // back into manual review forever.
-      const existingAlias = (product.productAliases || []).find(
-        (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-      );
+      const existingAlias = findExistingAlias(product, itemName);
 
       if (existingAlias?.verificationStatus === 'verified') {
         verificationStatus = 'auto_verified_alias';
@@ -746,13 +772,10 @@ async function processClaimedItem(itemName: string, props: any, product: any, nt
         productAlias = { documentId: alias.documentId };
       }
     }
-  } else if (product.canonicalName.toLowerCase() === itemName.toLowerCase()) {
+  } else if (normalizeAliasName(product.canonicalName) === normalizeAliasName(itemName)) {
     verificationStatus = 'auto_verified_canon';
   } else {
-    const productAliases = product.productAliases || [];
-    const matchingAlias = productAliases.find(
-      (alias: any) => alias.alternativeName.toLowerCase() === itemName.toLowerCase()
-    );
+    const matchingAlias = findExistingAlias(product, itemName);
 
     if (matchingAlias) {
       if (matchingAlias.verificationStatus === 'verified') {
@@ -765,14 +788,7 @@ async function processClaimedItem(itemName: string, props: any, product: any, nt
       productAlias = { documentId: matchingAlias.documentId };
     } else {
       verificationStatus = 'manual_review';
-      const newAlias = await strapi.documents('api::product-alias.product-alias').create({
-        data: {
-          alternativeName: itemName,
-          ntin: ntin || null,
-          verificationStatus: 'unverified',
-          product: { documentId: product.documentId },
-        },
-      });
+      const newAlias = await findOrCreateAliasByName(itemName, ntin, product, 'unverified');
       productAlias = { documentId: newAlias.documentId };
     }
   }
@@ -804,6 +820,11 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
 
   const finalCashback = calculateFinalCashback(items);
 
+  const { organizationCity, citySource } = await resolveOrganizationCity(
+    strapi,
+    receiptData.organizationAddress
+  );
+
   const receipt = await strapi.documents('api::receipt.receipt').create({
     data: {
       oofd_uid: receiptData.oofd_uid,
@@ -826,6 +847,8 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
       organizationName: receiptData.organizationName,
       organizationBin: receiptData.organizationBin,
       organizationAddress: receiptData.organizationAddress,
+      organizationCity,
+      citySource,
     }
   });
 
