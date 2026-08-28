@@ -125,6 +125,22 @@
       "required": false,
       "description": "Адрес точки продажи из фискальных данных чека (доступно для oofd и wofd; в данных kofd адреса нет)"
     },
+    "organizationCity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::city.city",
+      "description": "Город точки продажи, определённый из organizationAddress через deriveCityAndAddress() — НЕ город пользователя (см. User.city). Для аналитики чеков используется именно это поле."
+    },
+    "citySource": {
+      "type": "enumeration",
+      "enum": [
+        "organization",
+        "user",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Источник organizationCity: organization — определён из адреса чека; user — зарезервировано под будущий fallback на город пользователя (пока не используется); unknown — определить не удалось (нет адреса, KOFD, адрес не распознан)"
+    },
     "receiptPhoto": {
       "type": "media",
       "multiple": false,
