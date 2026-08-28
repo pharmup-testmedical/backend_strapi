@@ -1,3 +1,4 @@
+import { errors } from '@strapi/utils';
 import { updateReceiptStatus } from '../../../../utils/determine-receipt-status';
 import { normalizeAliasName } from '../../../../utils/normalize-alias-name';
 
@@ -97,7 +98,10 @@ async function assertNoDuplicateAlias({ alternativeName, productDocumentId, excl
 
     if (duplicate) {
         const productName = duplicate.product?.canonicalName ?? productDocumentId;
-        throw new Error(
+        // ValidationError (не голый Error) — Strapi показывает её текст
+        // прямо в интерфейсе Content Manager; обычный Error админка глушит
+        // до безликого "Internal Server Error", текст причины не виден.
+        throw new errors.ValidationError(
             `У товара "${productName}" уже есть псевдоним с таким названием (ID ${duplicate.id}: "${duplicate.alternativeName}"). Используйте существующий вместо создания дубля.`
         );
     }
