@@ -16,6 +16,8 @@
     "export_unencrypted": "npx strapi export --no-encrypt"
   },
   "dependencies": {
+    "@strapi/design-system": "2.0.0-rc.23",
+    "@strapi/icons": "2.0.0-rc.23",
     "@strapi/plugin-cloud": "5.13.0",
     "@strapi/plugin-users-permissions": "5.13.0",
     "@strapi/provider-email-nodemailer": "^5.16.0",
@@ -26,6 +28,7 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
+    "recharts": "^2.15.0",
     "strapi-plugin-migration-v5p": "^1.0.1",
     "styled-components": "^6.0.0",
     "winston-daily-rotate-file": "^5.0.0"
@@ -34,6 +37,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "better-sqlite3": "^13.0.3",
     "typescript": "^5"
   },
   "engines": {

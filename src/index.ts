@@ -1,6 +1,7 @@
 import type { Core } from '@strapi/strapi';
 import { generateUniqueReferralCode } from './utils/generate-referral-code';
 import { calculateUserBalance } from './utils/calculate-user-balance';
+import { registerAnalytics } from './analytics';
 // import {
 //   registerProductAliasMiddleware,
 //   registerAliasVerifierMiddleware
@@ -13,7 +14,9 @@ export default {
    *
    * This gives you an opportunity to extend code.
    */
-  register({ strapi }: { strapi: Core.Strapi }) {
+  async register({ strapi }: { strapi: Core.Strapi }) {
+    await registerAnalytics({ strapi });
+
     // Register Alias Verifier middleware first
     // registerAliasVerifierMiddleware({ strapi });
 

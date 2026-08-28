@@ -1,4 +1,5 @@
 import type { StrapiApp } from '@strapi/strapi/admin';
+import { ChartCircle } from '@strapi/icons';
 
 export default {
   config: {
@@ -33,5 +34,21 @@ export default {
   },
   bootstrap(app: StrapiApp) {
     console.log(app);
+  },
+  // register(app), не bootstrap(app) — в Strapi 5.13.0 bootstrap получает
+  // урезанный объект без app.router, addMenuLink здесь тоже доступен, но
+  // держим всю кастомную регистрацию в одном месте с гарантированно полным
+  // API (проверено по исходникам @strapi/admin/dist/admin/admin/src/StrapiApp.js).
+  register(app: StrapiApp) {
+    app.addMenuLink({
+      to: 'analytics',
+      icon: ChartCircle,
+      intlLabel: {
+        id: 'pharmup-analytics.nav-label',
+        defaultMessage: 'Аналитика',
+      },
+      permissions: [{ action: 'api::analytics.read', subject: null }],
+      Component: () => import('./pages/analytics'),
+    });
   },
 };
