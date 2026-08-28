@@ -16,6 +16,21 @@
       "required": true,
       "unique": true
     },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": false
+    },
+    "description": {
+      "type": "text",
+      "required": false
+    },
+    "sortOrder": {
+      "type": "integer",
+      "default": 0,
+      "required": true,
+      "description": "Порядок отображения в каталоге (для будущего раздела «Заказ») — меньше значит выше"
+    },
     "active": {
       "type": "boolean",
       "default": true,

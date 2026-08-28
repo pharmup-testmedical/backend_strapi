@@ -459,6 +459,7 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
     group: Schema.Attribute.Relation<'manyToOne', 'api::group.group'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -471,6 +472,10 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
       Schema.Attribute.Unique;
     products: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
+    slug: Schema.Attribute.UID<'name'>;
+    sortOrder: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -661,6 +666,7 @@ export interface ApiGroupGroup extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::group.group'> &
       Schema.Attribute.Private;
@@ -668,6 +674,10 @@ export interface ApiGroupGroup extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
     publishedAt: Schema.Attribute.DateTime;
+    slug: Schema.Attribute.UID<'name'>;
+    sortOrder: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -992,6 +1002,10 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
   };
   attributes: {
     appVersion: Schema.Attribute.String;
+    citySource: Schema.Attribute.Enumeration<
+      ['organization', 'user', 'unknown']
+    > &
+      Schema.Attribute.DefaultTo<'unknown'>;
     countsForScanTask: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
@@ -1018,6 +1032,7 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
     oofd_uid: Schema.Attribute.String & Schema.Attribute.Unique;
     organizationAddress: Schema.Attribute.String;
     organizationBin: Schema.Attribute.String;
+    organizationCity: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
     organizationName: Schema.Attribute.String;
     paymentMethod: Schema.Attribute.String & Schema.Attribute.Required;
     platform: Schema.Attribute.Enumeration<['ios', 'android']>;

@@ -15,6 +15,21 @@
       "required": true,
       "unique": true
     },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": false
+    },
+    "description": {
+      "type": "text",
+      "required": false
+    },
+    "sortOrder": {
+      "type": "integer",
+      "default": 0,
+      "required": true,
+      "description": "Порядок отображения внутри группы (для будущего раздела «Заказ») — меньше значит выше"
+    },
     "products": {
       "type": "relation",
       "relation": "oneToMany",
