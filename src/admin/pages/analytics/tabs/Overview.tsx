@@ -204,34 +204,29 @@ export default function Overview({ filters }: Props) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <Grid.Root gridCols={2} gap={4}>
-        <Grid.Item col={1} alignItems="stretch">
-          <ChartCard title="По дням недели">
-            <ResponsiveContainer>
-              <BarChart data={weekdayChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" fontSize={12} />
-                <YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => numberFormat.format(v)} />
-                <Bar dataKey="count" fill="#4945ff" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </Grid.Item>
-        <Grid.Item col={1} alignItems="stretch">
-          <ChartCard title="По часам">
-            <ResponsiveContainer>
-              <BarChart data={hourly}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" fontSize={12} />
-                <YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => numberFormat.format(v)} />
-                <Bar dataKey="count" fill="#00b0b6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </Grid.Item>
-      </Grid.Root>
+      <ChartCard title="По дням недели">
+        <ResponsiveContainer>
+          <BarChart data={weekdayChartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="label" fontSize={12} interval={0} />
+            <YAxis fontSize={12} />
+            <Tooltip formatter={(v: number) => numberFormat.format(v)} />
+            <Bar dataKey="count" fill="#4945ff" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="По часам">
+        <ResponsiveContainer>
+          <BarChart data={hourly}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="hour" fontSize={12} interval={0} />
+            <YAxis fontSize={12} />
+            <Tooltip formatter={(v: number) => numberFormat.format(v)} />
+            <Bar dataKey="count" fill="#00b0b6" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
       <Box background="neutral0" padding={4} borderColor="neutral150" hasRadius shadow="tableShadow">
         <Typography variant="delta" fontWeight="bold">
