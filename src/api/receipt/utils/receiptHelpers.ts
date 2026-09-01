@@ -582,9 +582,11 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
                         totalPrice: Math.round(totalPrice),
                         ntin: null,
                         gtin: null,
-                        // KOFD/WOFD не печатают скидку/НДС по каждой позиции
-                        // отдельно в надёжно парсимом виде — оставляем пустыми,
-                        // не угадывая формат.
+                        // itemTaxAmount заполняется ниже, из отдельной строки
+                        // "ҚҚС/НДС ...₸", которая идёт после NTIN этой позиции.
+                        // Скидку и ставку НДС (%) KOFD/WOFD по каждой позиции
+                        // отдельно не печатают в надёжно парсимом виде —
+                        // оставляем пустыми, не угадывая формат.
                         discount: null,
                         itemTaxAmount: null,
                         itemTaxRate: null,
@@ -608,6 +610,20 @@ const extractDataFromKofdTextLines = (textLines: string[], strapi: any) => {
             const gtinMatch = text.match(/GTIN:\s*(\d+)/)
             if (gtinMatch && result.items.length > 0) {
                 result.items[result.items.length - 1].gtin = gtinMatch[1]
+            }
+        }
+        // "ҚҚС/НДС  216,67₸" — сумма НДС именно ПО ЭТОЙ позиции, печатается
+        // сразу после её NTIN. Явно подписана в чеке (не путать со строкой
+        // "ҚҚС жалпы сомасы"/"Общая сумма НДС" — это отдельная, суммарная
+        // по всему чеку, парсится отдельно выше). Ставка (%) в тексте не
+        // печатается, только сумма — itemTaxRate оставляем null.
+        if (text.includes('ҚҚС/НДС')) {
+            const itemTaxMatch = text.match(/ҚҚС\/НДС\s+([\d\s,]+)\s*₸/)
+            if (itemTaxMatch && result.items.length > 0) {
+                const itemTaxAmount = parseKazakhNumber(itemTaxMatch[1].trim())
+                if (!isNaN(itemTaxAmount)) {
+                    result.items[result.items.length - 1].itemTaxAmount = Math.round(itemTaxAmount * 100) / 100
+                }
             }
         }
 
@@ -823,9 +839,11 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
                         totalPrice: Math.round(totalPrice),
                         ntin: null,
                         gtin: null,
-                        // KOFD/WOFD не печатают скидку/НДС по каждой позиции
-                        // отдельно в надёжно парсимом виде — оставляем пустыми,
-                        // не угадывая формат.
+                        // itemTaxAmount заполняется ниже, из отдельной строки
+                        // "ҚҚС/НДС ...₸", которая идёт после NTIN этой позиции.
+                        // Скидку и ставку НДС (%) KOFD/WOFD по каждой позиции
+                        // отдельно не печатают в надёжно парсимом виде —
+                        // оставляем пустыми, не угадывая формат.
                         discount: null,
                         itemTaxAmount: null,
                         itemTaxRate: null,
@@ -849,6 +867,20 @@ const extractDataFromWofdTextLines = (textLines: string[], strapi: any) => {
             const gtinMatch = text.match(/GTIN:\s*(\d+)/)
             if (gtinMatch && result.items.length > 0) {
                 result.items[result.items.length - 1].gtin = gtinMatch[1]
+            }
+        }
+        // "ҚҚС/НДС  216,67₸" — сумма НДС именно ПО ЭТОЙ позиции, печатается
+        // сразу после её NTIN. Явно подписана в чеке (не путать со строкой
+        // "ҚҚС жалпы сомасы"/"Общая сумма НДС" — это отдельная, суммарная
+        // по всему чеку, парсится отдельно выше). Ставка (%) в тексте не
+        // печатается, только сумма — itemTaxRate оставляем null.
+        if (text.includes('ҚҚС/НДС')) {
+            const itemTaxMatch = text.match(/ҚҚС\/НДС\s+([\d\s,]+)\s*₸/)
+            if (itemTaxMatch && result.items.length > 0) {
+                const itemTaxAmount = parseKazakhNumber(itemTaxMatch[1].trim())
+                if (!isNaN(itemTaxAmount)) {
+                    result.items[result.items.length - 1].itemTaxAmount = Math.round(itemTaxAmount * 100) / 100
+                }
             }
         }
 
