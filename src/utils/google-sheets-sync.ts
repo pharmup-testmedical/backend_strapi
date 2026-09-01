@@ -54,6 +54,14 @@ const formatMonthYear = (date: Date) => `${pad2(date.getMonth() + 1)}.${date.get
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
 
+// Google Sheets при valueInputOption: USER_ENTERED сам определяет тип
+// значения — строка из одних цифр (РНМ, БИН/ИИН, NTIN, GTIN) молча
+// превращается в число и теряет ведущие нули. Ведущий апостроф — тот же
+// приём, что и при ручном вводе в таблицу, — принудительно фиксирует
+// текстовый формат именно для этой ячейки, не трогая остальные
+// (числовые) колонки строки.
+const asText = (value: string | null | undefined): string => (value ? `'${value}` : '')
+
 interface ReceiptRowArgs {
     receipt: any
     receiptData: {
@@ -106,16 +114,16 @@ export const buildReceiptRows = ({
             receipt.verificationStatus,
             isCashbackItem ? item.verificationStatus : 'Сторонняя позиция',
             receipt.fiscalId,
-            receipt.kktCode,
+            asText(receipt.kktCode),
             receipt.kktSerialNumber,
             userEmail || '',
             receipt.ofdType,
             receiptData.organizationName || '',
-            receiptData.organizationBin || '',
+            asText(receiptData.organizationBin),
             city,
             address,
-            raw.ntin || '',
-            raw.gtin || '',
+            asText(raw.ntin),
+            asText(raw.gtin),
             claimedProduct?.category?.name || '',
             item.name,
             claimedProduct?.canonicalName || '',
@@ -137,7 +145,7 @@ export const buildReceiptRows = ({
             receipt.finalCashback ?? '',
             receipt.paymentMethod,
             platform || '',
-            appVersion || '',
+            asText(appVersion),
             consumerUrl,
             formatMonthYear(date),
         ]
