@@ -130,12 +130,18 @@ export default factories.createCoreController(
                     const updatedBalance = await updateUserBalance(requesterDocumentId)
                     strapi.log.info(`Updated user balance: ${updatedBalance}`)
 
+                    // 'awaiting_payout' — админ уже проверил заявку и дал добро на
+                    // начисление, но бухгалтер ещё не перевёл деньги (перейдёт в
+                    // 'approved' только после фактической выплаты). Деньги должны
+                    // оставаться зарезервированными весь этот период — иначе
+                    // пользователь сможет запросить те же деньги повторно, пока
+                    // первая заявка ждёт оплаты.
                     const pendingRequests = await strapi
                         .documents('api::cashback-request.cashback-request')
                         .findMany({
                             filters: {
                                 requester: requesterId,
-                                verificationStatus: 'pending'
+                                verificationStatus: { $in: ['pending', 'awaiting_payout'] }
                             },
                             fields: ['amount']
                         })

@@ -435,7 +435,7 @@ export interface ApiCashbackRequestCashbackRequest
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     verificationStatus: Schema.Attribute.Enumeration<
-      ['pending', 'approved', 'rejected', 'manual_review']
+      ['pending', 'awaiting_payout', 'approved', 'rejected', 'manual_review']
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'pending'>;
@@ -804,6 +804,10 @@ export interface ApiProductAliasProductAlias
       'api::product-alias.product-alias'
     > &
       Schema.Attribute.Private;
+    normalizedName: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        index: true;
+      }>;
     ntin: Schema.Attribute.String &
       Schema.Attribute.SetPluginOptions<{
         index: true;
@@ -921,6 +925,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'api::product-supplier.product-supplier'
     >;
     publishedAt: Schema.Attribute.DateTime;
+    recommendedRetailPrice: Schema.Attribute.Decimal;
     unpublishDate: Schema.Attribute.Date;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1208,6 +1213,8 @@ export interface ApiWebsiteSetupWebsiteSetup extends Struct.SingleTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    accountantNotificationEmail: Schema.Attribute.Email &
+      Schema.Attribute.Private;
     adminNotificationEmail: Schema.Attribute.Email & Schema.Attribute.Private;
     appVersion: Schema.Attribute.Component<'settings.app-version', false>;
     banking: Schema.Attribute.Component<'settings.banking', false> &

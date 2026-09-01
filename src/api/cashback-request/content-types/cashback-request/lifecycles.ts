@@ -4,6 +4,7 @@ import { formatCurrency } from '../../../../utils/format-currency';
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'в ожидании',
+    awaiting_payout: 'ожидает начисления',
     approved: 'одобрена',
     rejected: 'отклонена',
     manual_review: 'на проверке',
@@ -84,6 +85,67 @@ export default {
                 entityId: fullRequest.documentId,
             });
         }
+
+        // Сигнал бухгалтеру: админ проверил заявку и даёт согласие на
+        // начисление. Тот же переход-только-один-раз паттерн, что и выше —
+        // повторное сохранение уже в этом статусе не шлёт письмо повторно.
+        const isFreshAwaitingPayout =
+            previousVerificationStatus !== newStatus && newStatus === 'awaiting_payout';
+
+        if (isFreshAwaitingPayout) {
+            try {
+                const websiteSetup = await strapi.documents('api::website-setup.website-setup').findFirst();
+                const accountantEmail = websiteSetup?.accountantNotificationEmail;
+
+                if (!accountantEmail) {
+                    strapi.log.warn(
+                        `Заявка ${fullRequest.documentId} переведена в awaiting_payout, но письмо бухгалтеру не отправлено: почта бухгалтера не задана в настройках website-setup.`
+                    );
+                } else {
+                    const payoutMethod = PAYOUT_METHOD_LABELS[fullRequest.payoutMethod] || fullRequest.payoutMethod || 'Не указан';
+                    const payoutDestination = fullRequest.payoutDestination || 'Не указаны';
+                    const userLabel = formatUserForPayout(
+                        fullRequest.requester?.name,
+                        fullRequest.requester?.surname,
+                        fullRequest.payoutMethod
+                    );
+                    const requesterEmail = fullRequest.requester?.email || 'Не указан';
+                    const decidedAt = new Date().toLocaleString('ru-RU');
+                    const adminUrl = `https://strapi.testmedical.kz/admin/content-manager/collection-types/api::cashback-request.cashback-request/${fullRequest.documentId}`;
+
+                    // to — только accountantEmail, без cc/bcc: в письме реальные
+                    // платёжные реквизиты пользователя.
+                    await strapi.plugin('email').service('email').send({
+                        to: accountantEmail,
+                        from: 'pharmup@testmedical.kz',
+                        subject: `Согласовано к начислению: заявка ${fullRequest.documentId} — ${fullRequest.amount}тг`,
+                        text: `Заявка на кешбэк согласована к начислению\nДата согласования: ${decidedAt}\n\nЗаявка: ${fullRequest.documentId}\nСумма к начислению: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nПользователь: ${userLabel}\nСпособ вывода: ${payoutMethod}\nРеквизиты: ${payoutDestination}\n\nАдминистратор проверил заявку и даёт согласие на начисление.\n\n${adminUrl}`,
+                        html: `
+                            <h2>Заявка на кешбэк согласована к начислению</h2>
+                            <p><strong>Дата согласования:</strong> ${decidedAt}</p>
+                            <p>
+                                <strong>Заявка:</strong> ${fullRequest.documentId}<br>
+                                <strong>Сумма к начислению:</strong> ${fullRequest.amount}тг<br>
+                                <strong>Заявитель:</strong> ${requesterEmail}<br>
+                                <strong>Пользователь:</strong> ${userLabel}<br>
+                                <strong>Способ вывода:</strong> ${payoutMethod}<br>
+                                <strong>Реквизиты:</strong> ${payoutDestination}
+                            </p>
+                            <p>Администратор проверил заявку и даёт согласие на начисление.</p>
+                            <hr>
+                            <p><a href="${adminUrl}">Открыть заявку в панели администратора</a></p>
+                        `,
+                    });
+
+                    strapi.log.info(`Письмо бухгалтеру отправлено на ${accountantEmail} для заявки ${fullRequest.documentId}`);
+                }
+            } catch (error) {
+                // Статус важнее письма — заявка уже сохранена в awaiting_payout
+                // к этому моменту (это afterUpdate), ошибка отправки не должна
+                // откатывать или ронять смену статуса.
+                strapi.log.error(`Ошибка отправки письма бухгалтеру для заявки ${fullRequest.documentId}:`, error.message);
+            }
+        }
     },
 
     async afterCreate(event: any) {
@@ -131,19 +193,21 @@ export default {
                     to: adminEmail,
                     from: 'pharmup@testmedical.kz',
                     subject: `Новая заявка на кешбэк от ${requesterEmail}: ${fullRequest.documentId}`,
-                    text: `Новая заявка на кешбэк\n\nДата создания: ${createdAt}\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nПользователь: ${userLabel}\nРеквизиты: ${payoutDestination}\nГород: ${city}${organizationLine ? `\n${organizationLine}` : ''}${organizationAddress ? `\n${organizationAddress}` : ''}\n\n${adminUrl}`,
+                    text: `Новая заявка на кешбэк\nДата создания: ${createdAt}\n\nСтатус: ${status}\nСумма: ${fullRequest.amount}тг\nЗаявитель: ${requesterEmail}\nСпособ вывода: ${payoutMethod}\nПользователь: ${userLabel}\nРеквизиты: ${payoutDestination}\n\nГород: ${city}${organizationLine ? `\n${organizationLine}` : ''}${organizationAddress ? `\n${organizationAddress}` : ''}\n\n${adminUrl}`,
                     html: `
                         <h2>Новая заявка на кешбэк</h2>
                         <p><strong>Дата создания:</strong> ${createdAt}</p>
-                        <p><strong>Статус:</strong> ${status}</p>
-                        <p><strong>Сумма:</strong> ${fullRequest.amount}тг</p>
-                        <p><strong>Заявитель:</strong> ${requesterEmail}</p>
-                        <p><strong>Способ вывода:</strong> ${payoutMethod}</p>
-                        <p><strong>Пользователь:</strong> ${userLabel}</p>
-                        <p><strong>Реквизиты:</strong> ${payoutDestination}</p>
-                        <p><strong>Город:</strong> ${city}</p>
-                        ${organizationLine ? `<p>${organizationLine}</p>` : ''}
-                        ${organizationAddress ? `<p>${organizationAddress}</p>` : ''}
+                        <p>
+                            <strong>Статус:</strong> ${status}<br>
+                            <strong>Сумма:</strong> ${fullRequest.amount}тг<br>
+                            <strong>Заявитель:</strong> ${requesterEmail}<br>
+                            <strong>Способ вывода:</strong> ${payoutMethod}<br>
+                            <strong>Пользователь:</strong> ${userLabel}<br>
+                            <strong>Реквизиты:</strong> ${payoutDestination}
+                        </p>
+                        <p>
+                            <strong>Город:</strong> ${city}${organizationLine ? `<br>${organizationLine}` : ''}${organizationAddress ? `<br>${organizationAddress}` : ''}
+                        </p>
                         <hr>
                         <p><a href="${adminUrl}">Открыть заявку в панели администратора</a></p>
                     `,

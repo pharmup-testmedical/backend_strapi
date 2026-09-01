@@ -15,6 +15,7 @@
       "type": "enumeration",
       "enum": [
         "pending",
+        "awaiting_payout",
         "approved",
         "rejected",
         "manual_review"

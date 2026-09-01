@@ -42,6 +42,11 @@
     "adminNotificationEmail": {
       "type": "email",
       "private": true
+    },
+    "accountantNotificationEmail": {
+      "type": "email",
+      "private": true,
+      "required": false
     }
   }
 }
