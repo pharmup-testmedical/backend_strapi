@@ -165,10 +165,11 @@ export const buildReceiptRows = ({
             isCashbackItem ? 'TRUE' : 'FALSE',
             isCashbackItem ? item.cashback : '',
             isCashbackItem ? (item.cashback || 0) * (item.props?.quantity ?? 1) : '',
-            // Итоговый кешбэк — ожидаемая сумма ПО ВСЕМУ ЧЕКУ, повторяется
-            // на каждой строке чека, включая строки сторонних позиций (не
-            // привязано к isCashbackItem, в отличие от двух колонок выше).
-            expectedCashback || '',
+            // Итоговый кешбэк — ожидаемая сумма ПО ВСЕМУ ЧЕКУ, но только на
+            // ПЕРВОЙ строке этого чека (index === 0), не на каждой — иначе
+            // при суммировании колонки в таблице сумма задваивалась бы на
+            // каждую позицию чека.
+            index === 0 && expectedCashback ? expectedCashback : '',
             receipt.paymentMethod,
             platform || '',
             asText(appVersion),
