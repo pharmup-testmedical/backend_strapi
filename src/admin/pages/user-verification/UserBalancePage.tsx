@@ -281,7 +281,13 @@ export default function UserBalancePage() {
                 {summary.itemRateMismatches.map((m) => (
                   <Tr key={`${m.receiptId}-${m.itemId}`}>
                     <Td>
-                      <Typography>№{m.receiptFiscalId ?? m.receiptId}</Typography>
+                      <a
+                        href={`/admin/content-manager/collection-types/api::receipt.receipt/${m.receiptId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Typography textColor="primary600">№{m.receiptFiscalId ?? m.receiptId}</Typography>
+                      </a>
                     </Td>
                     <Td>
                       <Typography>{m.itemName}</Typography>
