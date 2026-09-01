@@ -130,11 +130,12 @@ export const buildReceiptRows = ({
 
         return [
             receipt.id,
-            // asText — иначе Sheets сам распознаёт строку как дату/время и
-            // переформатирует её своим (локale-зависимым) отображением, что
-            // на практике съедало ведущий ноль в часах ("2:16:47" вместо
-            // "02:16:47") — та же причина, что и у РНМ/БИН/NTIN/GTIN выше.
-            scannedAt ? asText(formatScannedAt(scannedAt)) : '',
+            // БЕЗ asText — пользователь сам настроил формат ячейки этой
+            // колонки в Sheets (dd.MM.yyyy HH:mm:ss), это требует, чтобы
+            // значение распозналось именно как дата/время, а не текст;
+            // apostrophe-приём (как у РНМ/БИН/NTIN/GTIN) тут сломал бы этот
+            // формат, зафиксировав ячейку текстом.
+            scannedAt ? formatScannedAt(scannedAt) : '',
             formatDate(date),
             formatTime(date),
             receipt.verificationStatus,
