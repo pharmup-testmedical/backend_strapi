@@ -81,6 +81,11 @@
       "default": 0,
       "required": true
     },
+    "recommendedRetailPrice": {
+      "type": "decimal",
+      "required": false,
+      "description": "РРЦ — для сверки цены за единицу в позиции чека с рекомендованной розничной ценой товара"
+    },
     "unpublishDate": {
       "type": "date"
     },
