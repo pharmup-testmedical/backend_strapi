@@ -54,6 +54,12 @@ const formatMonthYear = (date: Date) => `${pad2(date.getMonth() + 1)}.${date.get
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
 
+// В "Организация" ОФД иногда печатают организационную форму полностью,
+// а не сокращённо — колонка нужна компактной для сверки, не для
+// официального наименования.
+const shortenOrgName = (name: string | null | undefined): string =>
+    (name || '').replace(/ТОВАРИЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ/gi, 'ТОО')
+
 // KOFD/WOFD печатают только СУММУ НДС по позиции, без ставки (%) —
 // восстанавливаем номинальную ставку по формуле НДС-в-цене-включённого
 // налога: rate = sum / (gross - sum), где gross — цена за ед. × кол-во
@@ -145,7 +151,7 @@ export const buildReceiptRows = ({
             receipt.kktSerialNumber,
             userEmail || '',
             receipt.ofdType,
-            receiptData.organizationName || '',
+            shortenOrgName(receiptData.organizationName),
             asText(receiptData.organizationBin),
             city,
             address,
