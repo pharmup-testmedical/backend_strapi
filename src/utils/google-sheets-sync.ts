@@ -54,6 +54,18 @@ const formatMonthYear = (date: Date) => `${pad2(date.getMonth() + 1)}.${date.get
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
 
+// KOFD/WOFD печатают только СУММУ НДС по позиции, без ставки (%) —
+// восстанавливаем номинальную ставку по формуле НДС-в-цене-включённого
+// налога: rate = sum / (gross - sum), где gross — цена за ед. × кол-во
+// ДО вычета НДС (сумма НДС уже включена в саму цену чека). Проверено на
+// реальном чеке: 216.67 / (4550 - 216.67) = 0.05 (5%) — ровно совпадает с
+// номинальной ставкой. OOFD по-прежнему приходит с готовой ставкой в
+// самих данных — эта функция для него не нужна.
+const impliedTaxRate = (taxAmount: number | null | undefined, gross: number | null | undefined): number | null => {
+    if (!taxAmount || !gross || gross <= taxAmount) return null
+    return taxAmount / (gross - taxAmount)
+}
+
 // Google Sheets при valueInputOption: USER_ENTERED сам определяет тип
 // значения — строка из одних цифр (РНМ, БИН/ИИН, NTIN, GTIN) молча
 // превращается в число и теряет ведущие нули. Ведущий апостроф — тот же
@@ -101,6 +113,16 @@ export const buildReceiptRows = ({
     const { city, address } = deriveCityAndAddress(receiptData.organizationAddress)
     const rawItems = receiptData.items || []
 
+    // Ожидаемая сумма кешбэка по всему чеку — сумма (ставка × кол-во) по
+    // ВСЕМ кешбэк-позициям, включая ещё не подтверждённые администратором.
+    // receipt.finalCashback (что было тут раньше) считает только уже
+    // подтверждённые позиции — для частично проверенного чека это меньше
+    // реально ожидаемой суммы, вводит в заблуждение при сверке в таблице.
+    const expectedCashback = finalItems.reduce((sum: number, item: any) => {
+        if (item.__component !== 'receipt-item.item') return sum
+        return sum + (item.cashback || 0) * (item.props?.quantity ?? 1)
+    }, 0)
+
     return finalItems.map((item: any, index: number) => {
         const raw = rawItems[index] || {}
         const isCashbackItem = item.__component === 'receipt-item.item'
@@ -108,7 +130,11 @@ export const buildReceiptRows = ({
 
         return [
             receipt.id,
-            scannedAt ? formatScannedAt(scannedAt) : '',
+            // asText — иначе Sheets сам распознаёт строку как дату/время и
+            // переформатирует её своим (локale-зависимым) отображением, что
+            // на практике съедало ведущий ноль в часах ("2:16:47" вместо
+            // "02:16:47") — та же причина, что и у РНМ/БИН/NTIN/GTIN выше.
+            scannedAt ? asText(formatScannedAt(scannedAt)) : '',
             formatDate(date),
             formatTime(date),
             receipt.verificationStatus,
@@ -132,17 +158,16 @@ export const buildReceiptRows = ({
             item.props?.measureUnit ?? '',
             item.props?.unitPrice ?? '',
             raw.itemTaxAmount ?? '',
-            formatPercent(raw.itemTaxRate),
+            formatPercent(raw.itemTaxRate ?? impliedTaxRate(raw.itemTaxAmount, raw.totalPrice)),
             raw.discount || '',
             receipt.totalAmount,
             isCashbackItem ? 'TRUE' : 'FALSE',
             isCashbackItem ? item.cashback : '',
             isCashbackItem ? (item.cashback || 0) * (item.props?.quantity ?? 1) : '',
-            // Итоговый кешбэк — сумма ПО ВСЕМУ ЧЕКУ (finalCashback), а не по
-            // позиции — повторяется на каждой строке чека, включая строки
-            // сторонних позиций (не привязано к isCashbackItem, в отличие
-            // от двух колонок выше).
-            receipt.finalCashback ?? '',
+            // Итоговый кешбэк — ожидаемая сумма ПО ВСЕМУ ЧЕКУ, повторяется
+            // на каждой строке чека, включая строки сторонних позиций (не
+            // привязано к isCashbackItem, в отличие от двух колонок выше).
+            expectedCashback || '',
             receipt.paymentMethod,
             platform || '',
             asText(appVersion),
