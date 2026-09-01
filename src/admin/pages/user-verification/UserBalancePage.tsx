@@ -379,11 +379,14 @@ export default function UserBalancePage() {
                         {r.items.length === 0 ? (
                           <Typography textColor="neutral600">В чеке нет позиций для кешбэка.</Typography>
                         ) : (
-                          <Table colCount={5} rowCount={r.items.length + 1}>
+                          <Table colCount={6} rowCount={r.items.length + 1}>
                             <Thead>
                               <Tr>
                                 <Th>
                                   <Typography variant="sigma">Позиция</Typography>
+                                </Th>
+                                <Th>
+                                  <Typography variant="sigma">Заявленный товар</Typography>
                                 </Th>
                                 <Th>
                                   <Typography variant="sigma">Кол-во</Typography>
@@ -404,6 +407,11 @@ export default function UserBalancePage() {
                                 <Tr key={it.id}>
                                   <Td>
                                     <Typography>{it.name}</Typography>
+                                  </Td>
+                                  <Td>
+                                    <Typography textColor={it.claimedProductName ? undefined : 'neutral500'}>
+                                      {it.claimedProductName ?? '—'}
+                                    </Typography>
                                   </Td>
                                   <Td>
                                     <Typography>{it.quantity}</Typography>

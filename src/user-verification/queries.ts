@@ -63,7 +63,7 @@ interface RawItem {
   cashback?: number;
   verificationStatus?: string;
   props?: { quantity?: number } | null;
-  claimedProduct?: { cashbackAmount?: number } | null;
+  claimedProduct?: { cashbackAmount?: number; canonicalName?: string } | null;
 }
 
 interface RawReceipt {
@@ -81,6 +81,7 @@ interface RawReceipt {
 export interface ReceiptItemBreakdown {
   id: number;
   name: string;
+  claimedProductName: string | null;
   quantity: number;
   cashbackPerUnit: number;
   cashbackTotal: number;
@@ -145,6 +146,7 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
     return {
       id: item.id,
       name: item.name ?? '',
+      claimedProductName: item.claimedProduct?.canonicalName ?? null,
       quantity,
       cashbackPerUnit,
       cashbackTotal: cashbackPerUnit * quantity,
@@ -193,7 +195,7 @@ async function fetchUserReceipts(strapi: Core.Strapi, userDocumentId: string): P
           'receipt-item.item': {
             populate: {
               props: true,
-              claimedProduct: { fields: ['cashbackAmount'] },
+              claimedProduct: { fields: ['cashbackAmount', 'canonicalName'] },
             },
           },
           'receipt-item.product-claim': true,

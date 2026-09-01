@@ -41,6 +41,7 @@ export interface BalanceSummary {
 export interface ReceiptItemBreakdown {
   id: number;
   name: string;
+  claimedProductName: string | null;
   quantity: number;
   cashbackPerUnit: number;
   cashbackTotal: number;
