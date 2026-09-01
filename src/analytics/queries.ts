@@ -84,10 +84,19 @@ export async function getOverview(strapi: Core.Strapi, filters: AnalyticsFilters
   };
 }
 
-export async function getReceiptsDaily(strapi: Core.Strapi, filters: AnalyticsFilters) {
+export async function getReceiptsDaily(
+  strapi: Core.Strapi,
+  filters: AnalyticsFilters,
+  dateField: 'date' | 'createdAt' = 'date'
+) {
   const knex = strapi.db.connection;
   const client = getSqlClient(strapi);
-  const day = dayExpr(client, 'receipts.date');
+  // 'date' — дата покупки, указанная в самом чеке; 'createdAt' — когда чек
+  // фактически попал в систему (отсканирован/загружен в приложении). Сам
+  // диапазон from/to (applyFilters) всегда фильтрует по receipts.date —
+  // переключатель влияет только на то, по какому дню группируются точки
+  // графика, не на то, какие чеки вообще попадают в выборку.
+  const day = dayExpr(client, dateField === 'createdAt' ? 'receipts.created_at' : 'receipts.date');
 
   const rows = await applyFilters(
     knex('receipts')

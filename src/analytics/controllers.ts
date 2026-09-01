@@ -50,7 +50,15 @@ function parseUserIdParam(ctx: any): number {
 
 export const createControllers = (strapi: Core.Strapi) => ({
   overview: wrap(queries.getOverview)(strapi),
-  receiptsDaily: wrap(queries.getReceiptsDaily)(strapi),
+  receiptsDaily: safeHandler(strapi, async (ctx) => {
+    const filters = parseFilters(ctx.query ?? {});
+    const dateFieldRaw = ctx.query?.dateField;
+    if (dateFieldRaw != null && dateFieldRaw !== 'date' && dateFieldRaw !== 'createdAt') {
+      throw new InvalidFilterError(`Некорректный параметр dateField: "${dateFieldRaw}" (ожидается "date" или "createdAt")`);
+    }
+    const dateField = (dateFieldRaw as 'date' | 'createdAt' | undefined) ?? 'date';
+    ctx.body = { data: await queries.getReceiptsDaily(strapi, filters, dateField) };
+  }),
   cashbackDaily: wrap(queries.getCashbackDaily)(strapi),
   statuses: wrap(queries.getStatuses)(strapi),
   weekday: wrap(queries.getWeekday)(strapi),

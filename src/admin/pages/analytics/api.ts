@@ -267,8 +267,11 @@ export function useAnalyticsApi() {
       const { data } = await get(`/analytics/overview${buildQuery(filters)}`);
       return data.data;
     },
-    async getReceiptsDaily(filters: AnalyticsFilters): Promise<DailyPoint[]> {
-      const { data } = await get(`/analytics/receipts-daily${buildQuery(filters)}`);
+    async getReceiptsDaily(
+      filters: AnalyticsFilters,
+      dateField: 'date' | 'createdAt' = 'date'
+    ): Promise<DailyPoint[]> {
+      const { data } = await get(`/analytics/receipts-daily${buildQuery({ ...filters, dateField })}`);
       return data.data;
     },
     async getCashbackDaily(filters: AnalyticsFilters): Promise<CashbackDailyPoint[]> {

@@ -79,6 +79,7 @@ export default function Overview({ filters }: Props) {
   const [hourly, setHourly] = useState<HourlyPoint[]>([]);
   const [platforms, setPlatforms] = useState<{ data: PlatformRow[]; note: string } | null>(null);
   const [dailyMetric, setDailyMetric] = useState<'count' | 'sum'>('count');
+  const [dailyDateField, setDailyDateField] = useState<'date' | 'createdAt'>('date');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,17 +89,15 @@ export default function Overview({ filters }: Props) {
 
     Promise.all([
       api.getOverview(filters),
-      api.getReceiptsDaily(filters),
       api.getCashbackDaily(filters),
       api.getStatuses(filters),
       api.getWeekday(filters),
       api.getHourly(filters),
       api.getPlatforms(filters),
     ])
-      .then(([o, rd, cd, st, wd, hr, pl]) => {
+      .then(([o, cd, st, wd, hr, pl]) => {
         if (cancelled) return;
         setOverview(o);
-        setReceiptsDaily(rd);
         setCashbackDaily(cd);
         setStatuses(st);
         setWeekday(wd);
@@ -117,6 +116,26 @@ export default function Overview({ filters }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.from, filters.to, filters.status, filters.ofdType, filters.cityId]);
+
+  // Отдельный эффект — «Чеки по дням» единственный график с переключателем
+  // даты (чек/загрузка), не должен дёргать остальные 6 не связанных с этим
+  // запросов при каждом переключении.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getReceiptsDaily(filters, dailyDateField)
+      .then((rd) => {
+        if (!cancelled) setReceiptsDaily(rd);
+      })
+      .catch(() => {
+        // Общая ошибка загрузки уже показывается по основному эффекту выше —
+        // здесь достаточно просто не уронить график.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.from, filters.to, filters.status, filters.ofdType, filters.cityId, dailyDateField]);
 
   const weekdayChartData = useMemo(
     () => weekday.map((w) => ({ ...w, label: WEEKDAY_LABELS[w.weekday] ?? String(w.weekday) })),
@@ -172,12 +191,20 @@ export default function Overview({ filters }: Props) {
           <Typography variant="delta" fontWeight="bold">
             Чеки по дням
           </Typography>
-          <Box minWidth="12rem">
-            <SingleSelect value={dailyMetric} onChange={(v) => setDailyMetric(v as 'count' | 'sum')}>
-              <SingleSelectOption value="count">Количество</SingleSelectOption>
-              <SingleSelectOption value="sum">Сумма, ₸</SingleSelectOption>
-            </SingleSelect>
-          </Box>
+          <Flex gap={2}>
+            <Box minWidth="12rem">
+              <SingleSelect value={dailyDateField} onChange={(v) => setDailyDateField(v as 'date' | 'createdAt')}>
+                <SingleSelectOption value="date">По дате чека</SingleSelectOption>
+                <SingleSelectOption value="createdAt">По дате загрузки</SingleSelectOption>
+              </SingleSelect>
+            </Box>
+            <Box minWidth="12rem">
+              <SingleSelect value={dailyMetric} onChange={(v) => setDailyMetric(v as 'count' | 'sum')}>
+                <SingleSelectOption value="count">Количество</SingleSelectOption>
+                <SingleSelectOption value="sum">Сумма, ₸</SingleSelectOption>
+              </SingleSelect>
+            </Box>
+          </Flex>
         </Flex>
         <Box marginTop={4} style={{ width: '100%', height: 280 }}>
           <ResponsiveContainer>
