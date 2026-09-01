@@ -1,5 +1,5 @@
 import type { StrapiApp } from '@strapi/strapi/admin';
-import { ChartCircle } from '@strapi/icons';
+import { ChartCircle, Shield } from '@strapi/icons';
 
 export default {
   config: {
@@ -49,6 +49,17 @@ export default {
       },
       permissions: [{ action: 'api::analytics.read', subject: null }],
       Component: () => import('./pages/analytics'),
+    });
+
+    app.addMenuLink({
+      to: 'user-verification',
+      icon: Shield,
+      intlLabel: {
+        id: 'pharmup-user-verification.nav-label',
+        defaultMessage: 'Проверка пользователя',
+      },
+      permissions: [{ action: 'api::user-verification.read', subject: null }],
+      Component: () => import('./pages/user-verification'),
     });
   },
 };
