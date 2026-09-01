@@ -47,10 +47,9 @@ const getSheetsClient = () => {
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const formatDate = (date: Date) => `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
 const formatTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
-// С секундами — иначе не видно разницу в пару секунд между сканированием
-// чека и фактической записью строки в таблицу (formatTime выше её скрывает).
-const formatDateTime = (date: Date) =>
-    `${formatDate(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+const formatScannedAt = (date: Date) =>
+    `${formatDate(date)} г. ${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+const formatMonthYear = (date: Date) => `${pad2(date.getMonth() + 1)}.${date.getFullYear()}`
 
 // НДС в источнике хранится как доля (0.05 = 5%) — в таблице нужен процент.
 const formatPercent = (rate: number | null): string => (rate === null || rate === undefined ? '' : String(Math.round(rate * 10000) / 100))
@@ -63,8 +62,12 @@ interface ReceiptRowArgs {
         organizationAddress?: string | null
         items: any[]
     }
+    // Позиции чека, ОБЯЗАТЕЛЬНО заполненные заранее (populate) —
+    // claimedProduct (+ вложенная category), productAlias, props. Просто
+    // {documentId}-заглушка вместо полноценной связи (как приходит в
+    // памяти прямо из обработки чека до сохранения) сюда не годится —
+    // значения "Категория"/"Псевдоним" молча окажутся пустыми.
     finalItems: any[]
-    products: { documentId: string; canonicalName?: string }[]
     platform: string | null
     appVersion: string | null
     consumerUrl: string
@@ -78,7 +81,6 @@ export const buildReceiptRows = ({
     receipt,
     receiptData,
     finalItems,
-    products,
     platform,
     appVersion,
     consumerUrl,
@@ -88,26 +90,25 @@ export const buildReceiptRows = ({
     // Момент, когда чек реально попал в систему (сканирование в приложении)
     // — отдельная величина от даты самой покупки на чеке (`date` выше).
     const scannedAt = receipt.createdAt ? new Date(receipt.createdAt) : null
-    // Момент записи именно этой строки в таблицу — считаем один раз на чек,
-    // а не заново на каждую позицию, чтобы все строки одного чека совпадали.
-    const syncedAt = new Date()
     const { city, address } = deriveCityAndAddress(receiptData.organizationAddress)
     const rawItems = receiptData.items || []
 
     return finalItems.map((item: any, index: number) => {
         const raw = rawItems[index] || {}
         const isCashbackItem = item.__component === 'receipt-item.item'
-        const claimedProduct = isCashbackItem && item.claimedProduct?.documentId
-            ? products.find((p) => p.documentId === item.claimedProduct.documentId)
-            : null
+        const claimedProduct = isCashbackItem ? item.claimedProduct : null
 
         return [
-            '=ROW()-1', // ID — формула, чтобы не зависеть от гонки при параллельной записи
+            receipt.id,
+            scannedAt ? formatScannedAt(scannedAt) : '',
             formatDate(date),
             formatTime(date),
+            receipt.verificationStatus,
+            isCashbackItem ? item.verificationStatus : 'Сторонняя позиция',
             receipt.fiscalId,
             receipt.kktCode,
             receipt.kktSerialNumber,
+            userEmail || '',
             receipt.ofdType,
             receiptData.organizationName || '',
             receiptData.organizationBin || '',
@@ -115,8 +116,10 @@ export const buildReceiptRows = ({
             address,
             raw.ntin || '',
             raw.gtin || '',
+            claimedProduct?.category?.name || '',
             item.name,
             claimedProduct?.canonicalName || '',
+            item.productAlias?.alternativeName || '',
             item.props?.quantity ?? '',
             item.props?.measureUnit ?? '',
             item.props?.unitPrice ?? '',
@@ -126,13 +129,17 @@ export const buildReceiptRows = ({
             receipt.totalAmount,
             isCashbackItem ? 'TRUE' : 'FALSE',
             isCashbackItem ? item.cashback : '',
+            isCashbackItem ? (item.cashback || 0) * (item.props?.quantity ?? 1) : '',
+            // Итоговый кешбэк — сумма ПО ВСЕМУ ЧЕКУ (finalCashback), а не по
+            // позиции — повторяется на каждой строке чека, включая строки
+            // сторонних позиций (не привязано к isCashbackItem, в отличие
+            // от двух колонок выше).
+            receipt.finalCashback ?? '',
             receipt.paymentMethod,
             platform || '',
             appVersion || '',
             consumerUrl,
-            userEmail || '',
-            scannedAt ? formatDateTime(scannedAt) : '',
-            formatDateTime(syncedAt),
+            formatMonthYear(date),
         ]
     })
 }
@@ -160,13 +167,41 @@ export const appendRowsToSheet = async (rows: any[][], strapi: any): Promise<{ o
     return { ok: true }
 }
 
+// Populate для позиций чека, общий для мгновенной синхронизации и
+// бэкфилла — держим в одном месте, чтобы оба пути отдавали в таблицу
+// одинаково полные данные (category/productAlias), а не расходились.
+export const RECEIPT_ITEMS_POPULATE = {
+    on: {
+        'receipt-item.item': {
+            populate: {
+                claimedProduct: { populate: { category: true } },
+                productAlias: true,
+                props: true,
+            },
+        },
+        'receipt-item.product-claim': { populate: { props: true } },
+    },
+}
+
 // Записывает по одной строке в Google Таблицу на каждую позицию чека —
 // не блокирует отправку чека, если недоступны учётные данные Google Sheets
 // или сама запись не удалась (аналогично письму администратору).
-export const syncReceiptToSheet = async (args: ReceiptRowArgs & { strapi: any }) => {
+//
+// Позиции чека (claimedProduct/category, productAlias) в момент отправки
+// в памяти ещё не populate'ны (`item.productAlias` — это `{documentId}`,
+// без alternativeName) — перезапрашиваем чек из БД тем же populate'ом,
+// что и бэкфилл, вместо того чтобы полагаться на форму, в которой чек
+// пришёл сюда из контроллера.
+export const syncReceiptToSheet = async (
+    args: Omit<ReceiptRowArgs, 'finalItems'> & { strapi: any }
+) => {
     const { receipt, strapi } = args
     try {
-        const rows = buildReceiptRows(args)
+        const fullReceipt = await strapi.documents('api::receipt.receipt').findOne({
+            documentId: receipt.documentId,
+            populate: { items: RECEIPT_ITEMS_POPULATE },
+        })
+        const rows = buildReceiptRows({ ...args, receipt: fullReceipt, finalItems: fullReceipt.items || [] })
         const result = await appendRowsToSheet(rows, strapi)
         if (!result.ok) {
             strapi.log.debug(`[GoogleSheets] Синхронизация пропущена: ${result.error}`)

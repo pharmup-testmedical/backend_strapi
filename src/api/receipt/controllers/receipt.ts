@@ -3,7 +3,7 @@
  */
 import { factories } from '@strapi/strapi'
 import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptHelpers'
-import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet } from '../../../utils/google-sheets-sync'
+import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet, RECEIPT_ITEMS_POPULATE } from '../../../utils/google-sheets-sync'
 import { resolveOrganizationCity } from '../../../utils/resolve-organization-city'
 import { normalizeAliasName } from '../../../utils/normalize-alias-name'
 
@@ -358,10 +358,6 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
     let start = Number(ctx.query.start) || 0;
 
     try {
-      const products = await strapi.documents('api::product.product').findMany({
-        fields: ['canonicalName'],
-      });
-
       let totalReceipts = 0;
       let totalRows = 0;
 
@@ -372,12 +368,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           sort: ['date:asc'],
           populate: {
             user: { fields: ['email'] },
-            items: {
-              on: {
-                'receipt-item.item': { populate: { claimedProduct: true, props: true } },
-                'receipt-item.product-claim': { populate: { props: true } },
-              },
-            },
+            items: RECEIPT_ITEMS_POPULATE,
           },
         });
 
@@ -393,7 +384,6 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
               items: [], // старых сырых данных ОФД нет — NTIN/GTIN/НДС/Скидка останутся пустыми
             },
             finalItems: receipt.items || [],
-            products,
             platform: receipt.platform,
             appVersion: receipt.appVersion,
             consumerUrl: receipt.qrData,
@@ -488,8 +478,6 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
   await syncReceiptToSheet({
     receipt: result.receipt,
     receiptData,
-    finalItems: items,
-    products,
     platform: ctx.request.body.platform,
     appVersion: ctx.request.body.appVersion,
     consumerUrl: qrData,
@@ -855,8 +843,6 @@ async function createLateSubmissionReceipt({ ctx, userId }: any, receiptData: an
   await syncReceiptToSheet({
     receipt,
     receiptData,
-    finalItems: items,
-    products: [],
     platform: ctx.request.body.platform,
     appVersion: ctx.request.body.appVersion,
     consumerUrl: ctx.request.body.qrData,
