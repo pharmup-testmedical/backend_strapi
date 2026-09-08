@@ -19,6 +19,7 @@ interface Receipt {
         id: number;
         verificationStatus?: 'manual_review' | 'auto_verified_canon' | 'auto_verified_alias' | 'manually_verified_alias' | 'auto_rejected_alias' | 'manually_rejected_alias';
         productAlias?: { id: number; documentId: string }; // Use id for schema, documentId for runtime
+        props?: { quantity?: number } | null; // нужен calculateFinalCashback() внутри updateReceiptStatus()
     }>;
 }
 
@@ -218,7 +219,15 @@ export default {
                             on: {
                                 'receipt-item.item': {
                                     populate: {
-                                        productAlias: true
+                                        productAlias: true,
+                                        // Без этого calculateFinalCashback() внутри
+                                        // updateReceiptStatus() получает props===undefined
+                                        // на каждой позиции и молча подставляет quantity=1
+                                        // вместо реального количества — баг, из-за которого
+                                        // finalCashback занижался для любой позиции с
+                                        // quantity>1, подтверждённой через этот флоу
+                                        // (проверку псевдонима товара).
+                                        props: true
                                     }
                                 },
                                 'receipt-item.product-claim': {
