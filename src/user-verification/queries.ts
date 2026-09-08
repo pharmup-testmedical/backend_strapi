@@ -1,4 +1,5 @@
 import type { Core } from '@strapi/strapi';
+import { fetchCityCashbackOverrides, CityRateOverride } from '../utils/resolve-city-cashback-rate';
 
 /**
  * Независимый пересчёт баланса/чеков/транзакций пользователя — эталон для
@@ -177,7 +178,8 @@ export interface BalanceSummary {
 
 function computeReceiptSummary(
   receipt: RawReceipt,
-  historyByProductId: Map<number, CashbackHistoryPeriod[]>
+  historyByProductId: Map<number, CashbackHistoryPeriod[]>,
+  cityOverrides: Map<number, CityRateOverride>
 ): ReceiptSummary {
   const rawItems = (receipt.items ?? []).filter((it) => it.__component === 'receipt-item.item');
   const receiptDate = receipt.date ?? receipt.createdAt ?? null;
@@ -189,14 +191,22 @@ function computeReceiptSummary(
     const productId = item.claimedProduct?.id;
     const rateDiffers =
       productCashbackAmount != null && Math.abs(productCashbackAmount - cashbackPerUnit) > EPSILON;
-    // Ставка на чеке отличается от ТЕКУЩЕЙ ставки карточки товара — это ещё
-    // не значит ошибка: ставка могла легитимно измениться после даты чека.
-    // Если для товара есть история ставок, сверяем именно с ней (по дате
-    // чека); нет истории — считаем расхождением как раньше.
+    // Ставка на чеке отличается от ТЕКУЩЕЙ базовой ставки карточки товара —
+    // это ещё не значит ошибка: ставка могла легитимно измениться после даты
+    // чека (сверяем с историей — isRateHistoricallyValid) ИЛИ для города
+    // пользователя может действовать своя ставка (product-city-override).
+    // Обе проверки — про действующий сейчас город пользователя; если он
+    // сменил город после даты чека, сверка может быть неточной — известное
+    // упрощение, как и приблизительные границы периодов в бэкфилле истории.
     const historicallyValid =
       rateDiffers && productId != null && historyByProductId.has(productId)
         ? isRateHistoricallyValid(historyByProductId.get(productId)!, cashbackPerUnit, receiptDate)
         : false;
+    const cityOverride = productId != null ? cityOverrides.get(productId) : undefined;
+    const cityRateMatches =
+      rateDiffers &&
+      cityOverride?.cashbackAmount != null &&
+      Math.abs(cityOverride.cashbackAmount - cashbackPerUnit) <= EPSILON;
     return {
       id: item.id,
       name: item.name ?? '',
@@ -206,7 +216,7 @@ function computeReceiptSummary(
       cashbackTotal: cashbackPerUnit * quantity,
       verificationStatus: item.verificationStatus ?? 'manual_review',
       productCashbackAmount,
-      rateMismatch: rateDiffers && !historicallyValid,
+      rateMismatch: rateDiffers && !historicallyValid && !cityRateMatches,
     };
   });
 
@@ -305,7 +315,17 @@ async function fetchUserReceipts(strapi: Core.Strapi, userDocumentId: string): P
   );
   const historyByProductId = await fetchCashbackHistoryByProductId(strapi, productIds);
 
-  return receipts.map((r) => computeReceiptSummary(r, historyByProductId));
+  // Городская ставка — сверяем с ТЕКУЩИМ городом пользователя (не с тем,
+  // что мог действовать на момент чека — этот момент никак не сохранён на
+  // самом чеке). См. resolve-city-cashback-rate.ts.
+  const userCityRow = (await strapi.db.query('plugin::users-permissions.user').findOne({
+    where: { documentId: userDocumentId },
+    populate: { city: { select: ['id'] } },
+  })) as { city?: { id: number } | null } | null;
+  const cityId = userCityRow?.city?.id ?? null;
+  const cityOverrides = await fetchCityCashbackOverrides(strapi, productIds, cityId);
+
+  return receipts.map((r) => computeReceiptSummary(r, historyByProductId, cityOverrides));
 }
 
 export async function getUserByNumericId(strapi: Core.Strapi, userId: number) {

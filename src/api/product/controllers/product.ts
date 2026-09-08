@@ -3,6 +3,11 @@
  */
 
 import { factories } from '@strapi/strapi';
+import {
+    getUserCityId,
+    fetchCityCashbackOverrides,
+    resolveEffectiveCashbackAmount,
+} from '../../../utils/resolve-city-cashback-rate';
 
 export default factories.createCoreController('api::product.product', ({ strapi }) => ({
     async available(ctx) {
@@ -44,12 +49,34 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                 publicationState: 'live',
             });
 
-            const availableProducts = products.results.filter(product => {
+            const notExpired = products.results.filter(product => {
                 if (!product.unpublishDate) return true;
                 const unpublishDate = new Date(product.unpublishDate);
                 unpublishDate.setHours(23, 59, 59, 999); // Set to end of day
                 return unpublishDate >= nowInGMT5;
             });
+
+            // Городские особенности (api::product-city-override) — авторитетный
+            // город всегда user.city (см. resolve-city-cashback-rate.ts), не
+            // текущая геопозиция и не город точки продажи чека. Без единой
+            // строки override в базе список и ставки не меняются вообще.
+            const cityId = await getUserCityId(strapi, ctx.state.user.id);
+            const cityOverrides = await fetchCityCashbackOverrides(
+                strapi,
+                notExpired.map((p: any) => p.id),
+                cityId
+            );
+
+            const availableProducts = notExpired
+                .filter((product: any) => cityOverrides.get(product.id)?.visible !== false)
+                .map((product: any) => ({
+                    ...product,
+                    cashbackAmount: resolveEffectiveCashbackAmount(
+                        product.cashbackAmount || 0,
+                        product.id,
+                        cityOverrides
+                    ),
+                }));
 
             if (availableProducts.length === 0) {
                 strapi.log.info(`No cashback-eligible products found for user ${ctx.state.user.id}`);

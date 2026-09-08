@@ -312,8 +312,9 @@ export default function UserBalancePage() {
             Позиций с расхождением ставки кешбэка: {summary.itemRateMismatchCount}
           </Typography>
           <Typography variant="pi" textColor="neutral600" marginTop={1}>
-            Ставка кешбэка позиции чека не совпадает с текущей ставкой карточки товара. Может быть ошибкой
-            ручного ввода чека или легитимным изменением ставки товара после даты чека — требует ручной проверки.
+            Ставка кешбэка позиции чека не совпадает ни с текущей ставкой карточки товара, ни с исторической
+            (по дате чека), ни со ставкой для текущего города пользователя. Может быть ошибкой ручного ввода
+            чека — требует ручной проверки.
           </Typography>
           <Box marginTop={3} style={{ overflowX: 'auto' }}>
             <Table colCount={5} rowCount={summary.itemRateMismatches.length + 1}>

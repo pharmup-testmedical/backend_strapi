@@ -6,6 +6,12 @@ import { parseReceiptByOfdType, calculateFinalCashback } from '../utils/receiptH
 import { syncReceiptToSheet, buildReceiptRows, appendRowsToSheet, RECEIPT_ITEMS_POPULATE } from '../../../utils/google-sheets-sync'
 import { resolveOrganizationCity } from '../../../utils/resolve-organization-city'
 import { normalizeAliasName } from '../../../utils/normalize-alias-name'
+import {
+  getUserCityId,
+  fetchCityCashbackOverrides,
+  resolveEffectiveCashbackAmount,
+  CityRateOverride,
+} from '../../../utils/resolve-city-cashback-rate'
 
 // ==================== EXPORTED TYPES ====================
 export type ReceiptVerificationStatus =
@@ -192,14 +198,18 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       const uploadService = strapi.plugin('upload').service('upload');
       const [photoUpload] = await uploadService.upload({ data: {}, files: photoFile });
 
-      // Кешбэк по каждой позиции считаем из ставки товара в каталоге —
-      // это просто арифметика, а не решение, которое должен принимать
-      // админ. item.cashback хранится ЗА ЕДИНИЦУ товара (та же
-      // конвенция, что и в обычном QR-флоу, см. processClaimedItem —
-      // умножение на количество происходит отдельно, при подсчёте
-      // итога). Итоговая сумма чека всё равно требует подтверждения
-      // админом (verificationStatus остаётся manual_review), но ему уже
-      // не нужно вручную высчитывать сумму с нуля — только проверить.
+      const cityId = await getUserCityId(strapi, userId);
+      const cityOverrides = await fetchCityCashbackOverrides(strapi, products.map((p: any) => p.id), cityId);
+
+      // Кешбэк по каждой позиции считаем из ставки товара в каталоге (с
+      // поправкой на город пользователя, если для него задана городская
+      // особенность — см. resolve-city-cashback-rate.ts) — это просто
+      // арифметика, а не решение, которое должен принимать админ. item.cashback
+      // хранится ЗА ЕДИНИЦУ товара (та же конвенция, что и в обычном QR-флоу,
+      // см. processClaimedItem — умножение на количество происходит отдельно,
+      // при подсчёте итога). Итоговая сумма чека всё равно требует
+      // подтверждения админом (verificationStatus остаётся manual_review), но
+      // ему уже не нужно вручную высчитывать сумму с нуля — только проверить.
       const items: ReceiptItem[] = claims.map((claim) => {
         const product = products.find((p: any) => p.documentId === claim.productId);
         return {
@@ -207,7 +217,7 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           name: product.canonicalName,
           claimedProduct: { documentId: claim.productId },
           verificationStatus: 'manual_review',
-          cashback: product.cashbackAmount || 0,
+          cashback: resolveEffectiveCashbackAmount(product.cashbackAmount || 0, Number(product.id), cityOverrides),
           props: {
             unitPrice: claim.unitPrice,
             quantity: claim.quantity,
@@ -467,10 +477,17 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
 
   await validateItemNames(context, receiptData);
   const products = await validateAndFetchProducts(itemMappings);
+  // Городская ставка (см. resolve-city-cashback-rate.ts) — резолвится ОДИН
+  // раз здесь и передаётся дальше, а не запрашивается по одному товару в
+  // processClaimedItem, чтобы не плодить N+1 запросов на чек с несколькими
+  // позициями.
+  const cityId = await getUserCityId(strapi, userId);
+  const cityOverrides = await fetchCityCashbackOverrides(strapi, products.map((p: any) => p.id), cityId);
   const { items, hasVerified, hasRejected, hasNonVerified } = await processReceiptItems(
     receiptData,
     itemMappings,
-    products
+    products,
+    cityOverrides
   );
 
   const result = await processAndCreateReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified, isForTask);
@@ -626,7 +643,8 @@ async function validateAndFetchProducts(itemMappings: { [itemName: string]: stri
 async function processReceiptItems(
   receiptData: any,
   itemMappings: { [itemName: string]: string },
-  products: any[]
+  products: any[],
+  cityOverrides: Map<number, CityRateOverride>
 ) {
   let hasVerified = false;
   let hasRejected = false;
@@ -664,7 +682,7 @@ async function processReceiptItems(
         throw new Error(`Продукт с documentId ${productId} не найден`);
       }
 
-      const cashbackItem = await processClaimedItem(itemName, props, product, itemData.ntin);
+      const cashbackItem = await processClaimedItem(itemName, props, product, itemData.ntin, cityOverrides);
 
       if (['auto_verified_canon', 'auto_verified_alias', 'auto_verified_ntin', 'manually_verified_alias'].includes(cashbackItem.verificationStatus)) {
         hasVerified = true;
@@ -726,7 +744,13 @@ async function findOrCreateAliasByName(
   });
 }
 
-async function processClaimedItem(itemName: string, props: any, product: any, ntin?: string | null) {
+async function processClaimedItem(
+  itemName: string,
+  props: any,
+  product: any,
+  ntin: string | null | undefined,
+  cityOverrides: Map<number, CityRateOverride>
+) {
   let verificationStatus = 'manual_review';
   let productAlias = null;
 
@@ -788,7 +812,7 @@ async function processClaimedItem(itemName: string, props: any, product: any, nt
     verificationStatus,
     props,
     productAlias,
-    cashback: product.cashbackAmount || 0,
+    cashback: resolveEffectiveCashbackAmount(product.cashbackAmount || 0, product.id, cityOverrides),
   };
 }
 

@@ -1,0 +1,7 @@
+/**
+ * product-city-override router
+ */
+
+import { factories } from '@strapi/strapi';
+
+export default factories.createCoreRouter('api::product-city-override.product-city-override');

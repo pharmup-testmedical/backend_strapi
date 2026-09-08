@@ -858,6 +858,41 @@ export interface ApiProductCashbackHistoryProductCashbackHistory
   };
 }
 
+export interface ApiProductCityOverrideProductCityOverride
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'product_city_overrides';
+  info: {
+    description: '\u041F\u0435\u0440\u0435\u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0432\u043A\u0438 \u043A\u0435\u0448\u0431\u044D\u043A\u0430 \u0438/\u0438\u043B\u0438 \u0432\u0438\u0434\u0438\u043C\u043E\u0441\u0442\u0438 \u0442\u043E\u0432\u0430\u0440\u0430 \u0434\u043B\u044F \u043A\u043E\u043D\u043A\u0440\u0435\u0442\u043D\u043E\u0433\u043E \u0433\u043E\u0440\u043E\u0434\u0430. \u0415\u0441\u043B\u0438 \u0434\u043B\u044F \u043F\u0430\u0440\u044B (\u0442\u043E\u0432\u0430\u0440, \u0433\u043E\u0440\u043E\u0434) \u043D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0438 \u2014 \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u0442\u043E\u0432\u0430\u0440\u0430, \u0442\u043E\u0432\u0430\u0440 \u0432\u0438\u0434\u0435\u043D \u0432\u0435\u0437\u0434\u0435. \u0421\u043E\u0437\u0434\u0430\u0432\u0430\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C \u043D\u0443\u0436\u043D\u043E \u0442\u043E\u043B\u044C\u043A\u043E \u0434\u043B\u044F \u0440\u0435\u0430\u043B\u044C\u043D\u044B\u0445 \u0438\u0441\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0439.';
+    displayName: '\u0413\u043E\u0440\u043E\u0434\u0441\u043A\u0430\u044F \u043E\u0441\u043E\u0431\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u0442\u043E\u0432\u0430\u0440\u0430';
+    pluralName: 'product-city-overrides';
+    singularName: 'product-city-override';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    cashbackAmount: Schema.Attribute.Decimal;
+    city: Schema.Attribute.Relation<'manyToOne', 'api::city.city'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product-city-override.product-city-override'
+    > &
+      Schema.Attribute.Private;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    visible: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+  };
+}
+
 export interface ApiProductSupplierProductSupplier
   extends Struct.CollectionTypeSchema {
   collectionName: 'product_suppliers';
@@ -930,6 +965,10 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'api::product-cashback-history.product-cashback-history'
     >;
     category: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
+    cityOverrides: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::product-city-override.product-city-override'
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1834,6 +1873,7 @@ declare module '@strapi/strapi' {
       'api::notification.notification': ApiNotificationNotification;
       'api::product-alias.product-alias': ApiProductAliasProductAlias;
       'api::product-cashback-history.product-cashback-history': ApiProductCashbackHistoryProductCashbackHistory;
+      'api::product-city-override.product-city-override': ApiProductCityOverrideProductCityOverride;
       'api::product-supplier.product-supplier': ApiProductSupplierProductSupplier;
       'api::product.product': ApiProductProduct;
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;

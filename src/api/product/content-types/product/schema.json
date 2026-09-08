@@ -109,6 +109,12 @@
       "relation": "oneToMany",
       "target": "api::product-cashback-history.product-cashback-history",
       "mappedBy": "product"
+    },
+    "cityOverrides": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-city-override.product-city-override",
+      "mappedBy": "product"
     }
   }
 }

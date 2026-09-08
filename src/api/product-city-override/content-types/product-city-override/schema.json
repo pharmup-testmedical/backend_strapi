@@ -1,0 +1,37 @@
+{
+  "kind": "collectionType",
+  "collectionName": "product_city_overrides",
+  "info": {
+    "singularName": "product-city-override",
+    "pluralName": "product-city-overrides",
+    "displayName": "Городская особенность товара",
+    "description": "Переопределение ставки кешбэка и/или видимости товара для конкретного города. Если для пары (товар, город) нет записи — действует стандартная ставка карточки товара, товар виден везде. Создавать запись нужно только для реальных исключений."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "cityOverrides"
+    },
+    "city": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::city.city"
+    },
+    "cashbackAmount": {
+      "type": "decimal",
+      "required": false,
+      "description": "Ставка для этого города. Пусто = действует стандартная ставка карточки товара (изменена только видимость)"
+    },
+    "visible": {
+      "type": "boolean",
+      "default": true,
+      "required": true,
+      "description": "false — товар скрыт из каталога для пользователей этого города"
+    }
+  }
+}
