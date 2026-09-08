@@ -43,6 +43,12 @@
     "cashback": {
       "type": "decimal",
       "required": true
+    },
+    "fundingSupplier": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::supplier.supplier",
+      "description": "Поставщик, профинансировавший это начисление — заморожено в момент чека (копия Product.cashbackSupplier на тот момент), не живая ссылка. Смена поставщика у товара позже не переносит уже сделанные начисления задним числом. Пусто = начислено без привязки к депозиту (см. Product.cashbackSupplier)."
     }
   }
 }

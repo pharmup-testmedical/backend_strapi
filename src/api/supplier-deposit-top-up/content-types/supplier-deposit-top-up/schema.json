@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "supplier_deposit_top_ups",
+  "info": {
+    "singularName": "supplier-deposit-top-up",
+    "pluralName": "supplier-deposit-top-ups",
+    "displayName": "Пополнение депозита поставщика",
+    "description": "История пополнений кешбэк-депозита — поставщик переводит деньги на счёт разработчика вне приложения, админ заносит сюда сумму вручную. При создании записи баланс связанного депозита увеличивается автоматически, при удалении — уменьшается обратно (см. lifecycles.ts). Сумма и депозит записи неизменны после создания — для исправления ошибки удалить запись и создать новую, не редактировать существующую."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "deposit": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::supplier-cashback-deposit.supplier-cashback-deposit",
+      "inversedBy": "topUps"
+    },
+    "amount": {
+      "type": "decimal",
+      "required": true
+    },
+    "note": {
+      "type": "text",
+      "required": false,
+      "description": "Например номер платёжки или причина пополнения"
+    }
+  }
+}

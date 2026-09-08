@@ -81,6 +81,10 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
       'oneToOne',
       'api::product.product'
     >;
+    fundingSupplier: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::supplier.supplier'
+    >;
     name: Schema.Attribute.String & Schema.Attribute.Required;
     productAlias: Schema.Attribute.Relation<
       'oneToOne',

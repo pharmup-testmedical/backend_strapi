@@ -964,6 +964,10 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::product-cashback-history.product-cashback-history'
     >;
+    cashbackSupplier: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::supplier.supplier'
+    >;
     category: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
     cityOverrides: Schema.Attribute.Relation<
       'oneToMany',
@@ -1146,6 +1150,81 @@ export interface ApiReceiptReceipt extends Struct.CollectionTypeSchema {
       ]
     > &
       Schema.Attribute.Required;
+  };
+}
+
+export interface ApiSupplierCashbackDepositSupplierCashbackDeposit
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'supplier_cashback_deposits';
+  info: {
+    description: '\u0421\u0447\u0451\u0442\u0447\u0438\u043A \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u0441\u0442\u0432 \u043F\u0435\u0440\u0435\u0434 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u043E\u043C \u043F\u043E \u043A\u0435\u0448\u0431\u044D\u043A\u0443 \u2014 \u041D\u0415 \u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u0434\u0435\u043D\u044C\u0433\u0438, \u0430 \u0443\u0447\u0451\u0442 \u0442\u043E\u0433\u043E, \u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0435\u0449\u0451 \u043C\u043E\u0436\u043D\u043E \u043D\u0430\u0447\u0438\u0441\u043B\u0438\u0442\u044C \u043A\u0435\u0448\u0431\u044D\u043A\u0430 \u043E\u0442 \u0435\u0433\u043E \u0438\u043C\u0435\u043D\u0438, \u043F\u0440\u0435\u0436\u0434\u0435 \u0447\u0435\u043C \u043E\u043D \u043E\u0431\u044F\u0437\u0430\u043D \u043F\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u044C \u0434\u0435\u043F\u043E\u0437\u0438\u0442 \u0432\u043D\u0435 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F (\u0440\u0435\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u0434\u0435\u043D\u0435\u0433 \u043F\u0440\u043E\u0438\u0441\u0445\u043E\u0434\u0438\u0442 \u0432\u043D\u0435 \u0441\u0438\u0441\u0442\u0435\u043C\u044B). \u041D\u0430\u043C\u0435\u0440\u0435\u043D\u043D\u043E \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u0449\u043D\u043E\u0441\u0442\u044C \u043E\u0442 Supplier \u2014 \u043D\u0435 \u0441\u043C\u0435\u0448\u0438\u0432\u0430\u0442\u044C \u0441 \u0431\u0443\u0434\u0443\u0449\u0438\u043C\u0438 \u043E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u043C\u0438 \u00AB\u043F\u0440\u0430\u0439\u0441 \u0432 \u0437\u0430\u043A\u0430\u0437\u0435\u00BB (ProductSupplier) \u0438 \u00AB\u0440\u0435\u043A\u043B\u0430\u043C\u0430\u00BB, \u0443 \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u0441\u0432\u043E\u044F \u0441\u0443\u0449\u043D\u043E\u0441\u0442\u044C.';
+    displayName: '\u041A\u0435\u0448\u0431\u044D\u043A-\u0434\u0435\u043F\u043E\u0437\u0438\u0442 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430';
+    pluralName: 'supplier-cashback-deposits';
+    singularName: 'supplier-cashback-deposit';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    balance: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::supplier-cashback-deposit.supplier-cashback-deposit'
+    > &
+      Schema.Attribute.Private;
+    lowBalanceNotifiedAt: Schema.Attribute.DateTime;
+    notificationEmail: Schema.Attribute.Email & Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    supplier: Schema.Attribute.Relation<'oneToOne', 'api::supplier.supplier'>;
+    thresholdPercent: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<20>;
+    topUps: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::supplier-deposit-top-up.supplier-deposit-top-up'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiSupplierDepositTopUpSupplierDepositTopUp
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'supplier_deposit_top_ups';
+  info: {
+    description: '\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0439 \u043A\u0435\u0448\u0431\u044D\u043A-\u0434\u0435\u043F\u043E\u0437\u0438\u0442\u0430 \u2014 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0438\u0442 \u0434\u0435\u043D\u044C\u0433\u0438 \u043D\u0430 \u0441\u0447\u0451\u0442 \u0440\u0430\u0437\u0440\u0430\u0431\u043E\u0442\u0447\u0438\u043A\u0430 \u0432\u043D\u0435 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F, \u0430\u0434\u043C\u0438\u043D \u0437\u0430\u043D\u043E\u0441\u0438\u0442 \u0441\u044E\u0434\u0430 \u0441\u0443\u043C\u043C\u0443 \u0432\u0440\u0443\u0447\u043D\u0443\u044E. \u041F\u0440\u0438 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0438 \u0437\u0430\u043F\u0438\u0441\u0438 \u0431\u0430\u043B\u0430\u043D\u0441 \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u043E\u0433\u043E \u0434\u0435\u043F\u043E\u0437\u0438\u0442\u0430 \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438, \u043F\u0440\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0438 \u2014 \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442\u0441\u044F \u043E\u0431\u0440\u0430\u0442\u043D\u043E (\u0441\u043C. lifecycles.ts). \u0421\u0443\u043C\u043C\u0430 \u0438 \u0434\u0435\u043F\u043E\u0437\u0438\u0442 \u0437\u0430\u043F\u0438\u0441\u0438 \u043D\u0435\u0438\u0437\u043C\u0435\u043D\u043D\u044B \u043F\u043E\u0441\u043B\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u2014 \u0434\u043B\u044F \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u043E\u0448\u0438\u0431\u043A\u0438 \u0443\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C \u0438 \u0441\u043E\u0437\u0434\u0430\u0442\u044C \u043D\u043E\u0432\u0443\u044E, \u043D\u0435 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0443\u044E.';
+    displayName: '\u041F\u043E\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u0434\u0435\u043F\u043E\u0437\u0438\u0442\u0430 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430';
+    pluralName: 'supplier-deposit-top-ups';
+    singularName: 'supplier-deposit-top-up';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    amount: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    deposit: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::supplier-cashback-deposit.supplier-cashback-deposit'
+    >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::supplier-deposit-top-up.supplier-deposit-top-up'
+    > &
+      Schema.Attribute.Private;
+    note: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1879,6 +1958,8 @@ declare module '@strapi/strapi' {
       'api::promo-carousel.promo-carousel': ApiPromoCarouselPromoCarousel;
       'api::public-information.public-information': ApiPublicInformationPublicInformation;
       'api::receipt.receipt': ApiReceiptReceipt;
+      'api::supplier-cashback-deposit.supplier-cashback-deposit': ApiSupplierCashbackDepositSupplierCashbackDeposit;
+      'api::supplier-deposit-top-up.supplier-deposit-top-up': ApiSupplierDepositTopUpSupplierDepositTopUp;
       'api::supplier.supplier': ApiSupplierSupplier;
       'api::tasks-page.tasks-page': ApiTasksPageTasksPage;
       'api::test.test': ApiTestTest;

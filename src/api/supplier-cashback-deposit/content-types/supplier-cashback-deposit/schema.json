@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "supplier_cashback_deposits",
+  "info": {
+    "singularName": "supplier-cashback-deposit",
+    "pluralName": "supplier-cashback-deposits",
+    "displayName": "Кешбэк-депозит поставщика",
+    "description": "Счётчик обязательств перед поставщиком по кешбэку — НЕ физические деньги, а учёт того, сколько ещё можно начислить кешбэка от его имени, прежде чем он обязан пополнить депозит вне приложения (реальный перевод денег происходит вне системы). Намеренно отдельная сущность от Supplier — не смешивать с будущими отношениями «прайс в заказе» (ProductSupplier) и «реклама», у каждого своя сущность."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "supplier": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::supplier.supplier"
+    },
+    "balance": {
+      "type": "decimal",
+      "default": 0,
+      "required": true,
+      "description": "Текущий остаток обязательств. Списывается автоматически при начислении кешбэка по товарам этого поставщика (Product.cashbackSupplier) — этап 2, ещё не реализован. Пополняется только через создание записи «Пополнение депозита поставщика» (тот хук увеличивает это поле сам) — вручную здесь не редактировать."
+    },
+    "thresholdPercent": {
+      "type": "decimal",
+      "default": 20,
+      "required": false,
+      "description": "При каком % остатка от суммы последнего пополнения слать поставщику письмо «пополните». Пусто = используется 20% по умолчанию."
+    },
+    "notificationEmail": {
+      "type": "email",
+      "private": true,
+      "required": false,
+      "description": "Куда слать уведомление о низком остатке и обезличенные отчёты о списаниях (без персональных данных пользователей)"
+    },
+    "lowBalanceNotifiedAt": {
+      "type": "datetime",
+      "required": false,
+      "description": "Служебное поле — когда в текущем цикле уже отправлено письмо о низком остатке, чтобы не слать повторно. Сбрасывается при пополнении. Не редактировать вручную."
+    },
+    "topUps": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::supplier-deposit-top-up.supplier-deposit-top-up",
+      "mappedBy": "deposit"
+    }
+  }
+}
