@@ -247,6 +247,65 @@ export default function UserBalancePage() {
         </Typography>
       </Box>
 
+      {summary.finalCashbackMismatchCount > 0 && (
+        <Box marginTop={4} background="neutral0" padding={4} borderColor="danger500" hasRadius shadow="tableShadow">
+          <Typography variant="delta" fontWeight="bold" textColor="danger600">
+            Чеков с неверным итоговым кешбэком: {summary.finalCashbackMismatchCount}
+          </Typography>
+          <Typography variant="pi" textColor="neutral600" marginTop={1}>
+            У подтверждённого чека сохранённый «Итоговый кешбэк» не совпадает с суммой «кешбэк/ед. × кол-во» по
+            его позициям — обычно означает, что при пересчёте (например, при подтверждении псевдонима товара)
+            количество товара не учлось. Пользователю могло быть начислено меньше или больше положенного —
+            требует ручной проверки и, если расхождение подтвердится, исправления поля «Итоговый кешбэк» на
+            карточке чека в Content Manager.
+          </Typography>
+          <Box marginTop={3} style={{ overflowX: 'auto' }}>
+            <Table colCount={4} rowCount={summary.finalCashbackMismatches.length + 1}>
+              <Thead>
+                <Tr>
+                  <Th>
+                    <Typography variant="sigma">Чек</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">Дата</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">Сохранено (Итоговый кешбэк)</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">Ожидается по позициям</Typography>
+                  </Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {summary.finalCashbackMismatches.map((m) => (
+                  <Tr key={m.receiptId}>
+                    <Td>
+                      <a
+                        href={`/admin/content-manager/collection-types/api::receipt.receipt/${m.receiptId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Typography textColor="primary600">№{m.receiptFiscalId ?? m.receiptId}</Typography>
+                      </a>
+                    </Td>
+                    <Td>
+                      <Typography>{m.date?.slice(0, 10) ?? '—'}</Typography>
+                    </Td>
+                    <Td>
+                      <Typography textColor="danger600">{money(m.storedFinalCashback)}</Typography>
+                    </Td>
+                    <Td>
+                      <Typography fontWeight="bold">{money(m.expectedCashback)}</Typography>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        </Box>
+      )}
+
       {summary.itemRateMismatchCount > 0 && (
         <Box marginTop={4} background="neutral0" padding={4} borderColor="danger500" hasRadius shadow="tableShadow">
           <Typography variant="delta" fontWeight="bold" textColor="danger600">
@@ -360,7 +419,12 @@ export default function UserBalancePage() {
                     <Typography>{money(r.totalAmount)}</Typography>
                   </Td>
                   <Td>
-                    {r.confirmedCashback > 0 && <Typography textColor="success600">+{money(r.confirmedCashback)}</Typography>}
+                    {r.confirmedCashback > 0 && (
+                      <Typography textColor={r.finalCashbackMismatch ? 'danger600' : 'success600'}>
+                        +{money(r.confirmedCashback)}
+                        {r.finalCashbackMismatch ? ` (ожидается ${money(r.expectedCashback)})` : ''}
+                      </Typography>
+                    )}
                     {r.pendingCashback > 0 && (
                       <Typography textColor="warning600">+{money(r.pendingCashback)} ожидается</Typography>
                     )}

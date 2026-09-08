@@ -101,6 +101,8 @@ export interface ReceiptSummary {
   statusLabel: string;
   confirmedCashback: number;
   pendingCashback: number;
+  expectedCashback: number;
+  finalCashbackMismatch: boolean;
   items: ReceiptItemBreakdown[];
 }
 
@@ -125,6 +127,14 @@ export interface ItemRateMismatch {
   productCashbackAmount: number | null;
 }
 
+export interface FinalCashbackMismatch {
+  receiptId: string;
+  receiptFiscalId: string | null;
+  date: string | null;
+  storedFinalCashback: number;
+  expectedCashback: number;
+}
+
 export interface BalanceSummary {
   account: { stored: number; recomputed: number; mismatch: boolean };
   totalEarned: number;
@@ -134,6 +144,8 @@ export interface BalanceSummary {
   withdrawn: number;
   itemRateMismatchCount: number;
   itemRateMismatches: ItemRateMismatch[];
+  finalCashbackMismatchCount: number;
+  finalCashbackMismatches: FinalCashbackMismatch[];
 }
 
 function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
@@ -170,6 +182,18 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
     .filter((it) => it.verificationStatus === 'manual_review')
     .reduce((sum, it) => sum + it.cashbackTotal, 0);
 
+  // Сумма "кешбэк/ед. × кол-во" по ВСЕМ позициям чека — то, что реально видно
+  // в развороте позиций. Для полностью подтверждённого чека это должно
+  // совпадать с receipt.finalCashback (тем, что реально начислено); если не
+  // совпадает — finalCashback был вписан/пересчитан неверно (например, без
+  // учёта quantity при ручном подтверждении администратором). Для частично
+  // подтверждённых чеков confirmedCashback уже посчитан из позиций напрямую
+  // (см. выше), сверять там нечего — flag остаётся false.
+  const itemsCashbackSum = items.reduce((sum, it) => sum + it.cashbackTotal, 0);
+  const finalCashbackMismatch =
+    FULLY_VERIFIED_RECEIPT_STATUSES.includes(receipt.verificationStatus) &&
+    Math.abs(confirmedCashback - itemsCashbackSum) > EPSILON;
+
   return {
     id: receipt.id,
     documentId: receipt.documentId,
@@ -181,6 +205,8 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
     statusLabel: RECEIPT_STATUS_LABELS[receipt.verificationStatus] ?? receipt.verificationStatus,
     confirmedCashback,
     pendingCashback,
+    expectedCashback: itemsCashbackSum,
+    finalCashbackMismatch,
     items,
   };
 }
@@ -292,6 +318,16 @@ export async function computeBalanceSummary(
       }))
   );
 
+  const finalCashbackMismatches: FinalCashbackMismatch[] = receipts
+    .filter((r) => r.finalCashbackMismatch)
+    .map((r) => ({
+      receiptId: r.documentId,
+      receiptFiscalId: r.fiscalId,
+      date: r.date,
+      storedFinalCashback: r.confirmedCashback,
+      expectedCashback: r.expectedCashback,
+    }));
+
   return {
     account: {
       stored: storedAccount,
@@ -309,6 +345,8 @@ export async function computeBalanceSummary(
     withdrawn: approvedTotal,
     itemRateMismatchCount: itemRateMismatches.length,
     itemRateMismatches,
+    finalCashbackMismatchCount: finalCashbackMismatches.length,
+    finalCashbackMismatches,
   };
 }
 

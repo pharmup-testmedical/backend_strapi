@@ -26,6 +26,14 @@ export interface ItemRateMismatch {
   productCashbackAmount: number | null;
 }
 
+export interface FinalCashbackMismatch {
+  receiptId: string;
+  receiptFiscalId: string | null;
+  date: string | null;
+  storedFinalCashback: number;
+  expectedCashback: number;
+}
+
 export interface BalanceSummary {
   user: { id: number; name: string | null; surname: string | null; phone: string | null; email: string | null };
   account: BalanceAccount;
@@ -36,6 +44,8 @@ export interface BalanceSummary {
   withdrawn: number;
   itemRateMismatchCount: number;
   itemRateMismatches: ItemRateMismatch[];
+  finalCashbackMismatchCount: number;
+  finalCashbackMismatches: FinalCashbackMismatch[];
 }
 
 export interface ReceiptItemBreakdown {
@@ -61,6 +71,8 @@ export interface ReceiptRow {
   statusLabel: string;
   confirmedCashback: number;
   pendingCashback: number;
+  expectedCashback: number;
+  finalCashbackMismatch: boolean;
   items: ReceiptItemBreakdown[];
 }
 
