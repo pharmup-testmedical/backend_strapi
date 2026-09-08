@@ -103,6 +103,12 @@
       "relation": "oneToMany",
       "target": "api::product-supplier.product-supplier",
       "mappedBy": "product"
+    },
+    "cashbackHistory": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-cashback-history.product-cashback-history",
+      "mappedBy": "product"
     }
   }
 }

@@ -63,7 +63,34 @@ interface RawItem {
   cashback?: number;
   verificationStatus?: string;
   props?: { quantity?: number } | null;
-  claimedProduct?: { cashbackAmount?: number; canonicalName?: string } | null;
+  claimedProduct?: { id?: number; cashbackAmount?: number; canonicalName?: string } | null;
+}
+
+interface CashbackHistoryPeriod {
+  rate: number;
+  validFrom: string | null;
+  validTo: string | null;
+}
+
+/**
+ * Ставка на чеке считается легитимной исторической (не расхождением), если
+ * для товара вообще есть записанная история (иначе — нечего сверять, падаем
+ * назад на сравнение с текущей ставкой карточки) И среди периодов истории
+ * находится период с этой ставкой, покрывающий дату чека. Дата чека
+ * отсутствует (например, старые записи без даты) — тогда не блокируем
+ * проверку датой, просто ищем совпадение по ставке.
+ */
+function isRateHistoricallyValid(periods: CashbackHistoryPeriod[], rate: number, receiptDate: string | null): boolean {
+  if (periods.length === 0) return false;
+  const d = receiptDate ? new Date(receiptDate).getTime() : null;
+
+  return periods.some((p) => {
+    if (Math.abs(p.rate - rate) > EPSILON) return false;
+    if (d === null) return true;
+    if (p.validFrom && d < new Date(p.validFrom).getTime()) return false;
+    if (p.validTo && d >= new Date(p.validTo).getTime()) return false;
+    return true;
+  });
 }
 
 interface RawReceipt {
@@ -148,13 +175,28 @@ export interface BalanceSummary {
   finalCashbackMismatches: FinalCashbackMismatch[];
 }
 
-function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
+function computeReceiptSummary(
+  receipt: RawReceipt,
+  historyByProductId: Map<number, CashbackHistoryPeriod[]>
+): ReceiptSummary {
   const rawItems = (receipt.items ?? []).filter((it) => it.__component === 'receipt-item.item');
+  const receiptDate = receipt.date ?? receipt.createdAt ?? null;
 
   const items: ReceiptItemBreakdown[] = rawItems.map((item) => {
     const quantity = item.props?.quantity ?? 1;
     const cashbackPerUnit = item.cashback ?? 0;
     const productCashbackAmount = item.claimedProduct?.cashbackAmount ?? null;
+    const productId = item.claimedProduct?.id;
+    const rateDiffers =
+      productCashbackAmount != null && Math.abs(productCashbackAmount - cashbackPerUnit) > EPSILON;
+    // Ставка на чеке отличается от ТЕКУЩЕЙ ставки карточки товара — это ещё
+    // не значит ошибка: ставка могла легитимно измениться после даты чека.
+    // Если для товара есть история ставок, сверяем именно с ней (по дате
+    // чека); нет истории — считаем расхождением как раньше.
+    const historicallyValid =
+      rateDiffers && productId != null && historyByProductId.has(productId)
+        ? isRateHistoricallyValid(historyByProductId.get(productId)!, cashbackPerUnit, receiptDate)
+        : false;
     return {
       id: item.id,
       name: item.name ?? '',
@@ -164,8 +206,7 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
       cashbackTotal: cashbackPerUnit * quantity,
       verificationStatus: item.verificationStatus ?? 'manual_review',
       productCashbackAmount,
-      rateMismatch:
-        productCashbackAmount != null && Math.abs(productCashbackAmount - cashbackPerUnit) > EPSILON,
+      rateMismatch: rateDiffers && !historicallyValid,
     };
   });
 
@@ -198,7 +239,7 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
     id: receipt.id,
     documentId: receipt.documentId,
     fiscalId: receipt.fiscalId ?? null,
-    date: receipt.date ?? receipt.createdAt ?? null,
+    date: receiptDate,
     totalAmount: receipt.totalAmount ?? 0,
     itemsCount: rawItems.length,
     verificationStatus: receipt.verificationStatus,
@@ -209,6 +250,30 @@ function computeReceiptSummary(receipt: RawReceipt): ReceiptSummary {
     finalCashbackMismatch,
     items,
   };
+}
+
+async function fetchCashbackHistoryByProductId(
+  strapi: Core.Strapi,
+  productIds: number[]
+): Promise<Map<number, CashbackHistoryPeriod[]>> {
+  const map = new Map<number, CashbackHistoryPeriod[]>();
+  if (productIds.length === 0) return map;
+
+  const rows = (await strapi.db.query('api::product-cashback-history.product-cashback-history').findMany({
+    where: { product: { id: { $in: productIds } } },
+    select: ['rate', 'validFrom', 'validTo'],
+    populate: { product: { select: ['id'] } },
+  })) as Array<{ rate: number; validFrom: string | null; validTo: string | null; product: { id: number } }>;
+
+  for (const row of rows) {
+    const productId = row.product?.id;
+    if (productId == null) continue;
+    const list = map.get(productId) ?? [];
+    list.push({ rate: Number(row.rate), validFrom: row.validFrom, validTo: row.validTo });
+    map.set(productId, list);
+  }
+
+  return map;
 }
 
 async function fetchUserReceipts(strapi: Core.Strapi, userDocumentId: string): Promise<ReceiptSummary[]> {
@@ -230,7 +295,17 @@ async function fetchUserReceipts(strapi: Core.Strapi, userDocumentId: string): P
     },
   })) as unknown as RawReceipt[];
 
-  return receipts.map(computeReceiptSummary);
+  const productIds = Array.from(
+    new Set(
+      receipts
+        .flatMap((r) => r.items ?? [])
+        .map((it) => it.claimedProduct?.id)
+        .filter((id): id is number => id != null)
+    )
+  );
+  const historyByProductId = await fetchCashbackHistoryByProductId(strapi, productIds);
+
+  return receipts.map((r) => computeReceiptSummary(r, historyByProductId));
 }
 
 export async function getUserByNumericId(strapi: Core.Strapi, userId: number) {

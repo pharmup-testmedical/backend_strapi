@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "product_cashback_histories",
+  "info": {
+    "singularName": "product-cashback-history",
+    "pluralName": "product-cashback-histories",
+    "displayName": "История ставки кешбэка",
+    "description": "Периоды действия ставки кешбэка товара. Пишется автоматически при изменении Product.cashbackAmount (см. lifecycles.ts у Product) — нужна, чтобы «Проверка пользователя» отличала легитимное историческое изменение ставки от реальной ошибки ввода на чеке."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "cashbackHistory"
+    },
+    "rate": {
+      "type": "decimal",
+      "required": true,
+      "description": "Ставка кешбэка, действовавшая в этот период"
+    },
+    "validFrom": {
+      "type": "datetime",
+      "required": false,
+      "description": "Пусто = действовала с неизвестного момента в прошлом (записано бэкфиллом, а не хуком)"
+    },
+    "validTo": {
+      "type": "datetime",
+      "required": false,
+      "description": "Пусто = действует по настоящий момент"
+    }
+  }
+}
