@@ -81,6 +81,12 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
       'oneToOne',
       'api::product.product'
     >;
+    depositDeductedAmount: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
+    depositExhausted: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<false>;
     fundingSupplier: Schema.Attribute.Relation<
       'oneToOne',
       'api::supplier.supplier'

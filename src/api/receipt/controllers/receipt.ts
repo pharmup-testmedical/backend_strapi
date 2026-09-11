@@ -179,8 +179,15 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
       // Валидируем productId по реальному каталогу — не доверяем
       // произвольным id вслепую (тот же принцип, что и в broadcast
       // уведомлений).
+      // status:'published' — явно, как и в QR-флоу (validateAndFetchProducts).
+      // Без этого findMany() по умолчанию отдавал ЧЕРНОВИК товара, если он
+      // существует наравне с публикацией (подтверждено тестом на этапе 2 —
+      // раньше здесь читалась потенциально неопубликованная cashbackAmount,
+      // теперь ещё и cashbackSupplier читал бы её же).
       const products = await strapi.documents('api::product.product').findMany({
         filters: { documentId: { $in: claims.map((c) => c.productId) } },
+        status: 'published',
+        populate: { cashbackSupplier: true },
       });
       if (products.length !== new Set(claims.map((c) => c.productId)).size) {
         return ctx.badRequest('Один или несколько товаров не найдены в каталоге');
@@ -218,6 +225,8 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
           claimedProduct: { documentId: claim.productId },
           verificationStatus: 'manual_review',
           cashback: resolveEffectiveCashbackAmount(product.cashbackAmount || 0, Number(product.id), cityOverrides),
+          // Та же заморозка, что и в QR-флоу (processClaimedItem) — см. там.
+          fundingSupplier: product.cashbackSupplier?.documentId ?? null,
           props: {
             unitPrice: claim.unitPrice,
             quantity: claim.quantity,
@@ -625,7 +634,7 @@ async function validateAndFetchProducts(itemMappings: { [itemName: string]: stri
       documentId: productId,
       status: 'published',
       filters: { cashbackEligible: true },
-      populate: { productAliases: true },
+      populate: { productAliases: true, cashbackSupplier: true },
     });
     return { productId, product };
   });
@@ -813,6 +822,11 @@ async function processClaimedItem(
     props,
     productAlias,
     cashback: resolveEffectiveCashbackAmount(product.cashbackAmount || 0, product.id, cityOverrides),
+    // Заморозка на момент чека — см. resolve-city-cashback-rate.ts принцип,
+    // тот же для поставщика: живой Product.cashbackSupplier сюда НЕ
+    // читается заново нигде, кроме этой точки. Само списание депозита —
+    // подэтап 2 (reconcileReceiptDeposits), здесь только фиксация факта.
+    fundingSupplier: product.cashbackSupplier?.documentId ?? null,
   };
 }
 
