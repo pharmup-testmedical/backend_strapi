@@ -5,25 +5,85 @@ export const isValidDate = (dateString: string): boolean => {
     return !isNaN(Date.parse(dateString))
 }
 
-// OFD APIs (oofd/kofd/wofd) are external government-adjacent services that
-// occasionally respond slowly under load; a single timeout shouldn't fail
-// the whole scan, so one retry is attempted before giving up.
+// OFD APIs (oofd/kofd/wofd) are external government-adjacent services.
+// KOFD/WOFD respond quickly in practice, so the original short timeout
+// stays for them. consumer.oofd.kz is different — confirmed empirically
+// 2026-09-14 that it can take upwards of 50s to answer a completely
+// legitimate ticket (curl against the real endpoint: HTTP 200 with valid
+// data at 53.6s) while still eventually succeeding, not hanging forever.
+// The old 15s timeout was cutting off responses that were already on
+// their way — so OOFD gets its own, much more generous timeout.
 const REQUEST_TIMEOUT_MS = 15000
-const requestWithRetry = async (apiUrl: string, httpsAgent: https.Agent, strapi: any, logPrefix: string) => {
+const OOFD_REQUEST_TIMEOUT_MS = 90000
+
+// A timeout on a request that HAS reached the OFD (TLS handshake done,
+// request sent) means that specific OFD is just being slow right now —
+// immediately retrying the identical query doesn't help (it's not a
+// dropped connection, the far end is still chewing on the same request)
+// and only doubles the user's wait plus the load on an already-struggling
+// service. Retry only for genuine connection-level failures (refused,
+// reset, DNS, TLS) — those ARE worth one retry, a real transient blip.
+const isTimeoutError = (error: any) =>
+    error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')
+
+const requestWithRetry = async (
+    apiUrl: string,
+    httpsAgent: https.Agent,
+    strapi: any,
+    logPrefix: string,
+    timeoutMs: number = REQUEST_TIMEOUT_MS
+) => {
     try {
         return await axios.get(apiUrl, {
             httpsAgent,
-            timeout: REQUEST_TIMEOUT_MS,
+            timeout: timeoutMs,
             headers: { 'Accept': 'application/json' },
         })
     } catch (error: any) {
-        strapi.log.warn(`[${logPrefix}] Request failed, retrying once: ${error.message}`)
+        if (isTimeoutError(error)) {
+            strapi.log.warn(`[${logPrefix}] Timeout after ${timeoutMs}ms — не повторяем (см. комментарий у isTimeoutError)`)
+            throw error
+        }
+        strapi.log.warn(`[${logPrefix}] Request failed (${error.code || error.message}), retrying once`)
         return await axios.get(apiUrl, {
             httpsAgent,
-            timeout: REQUEST_TIMEOUT_MS,
+            timeout: timeoutMs,
             headers: { 'Accept': 'application/json' },
         })
     }
+}
+
+// Мобильное приложение сначала вызывает readOFD (превью чека перед выбором
+// товаров), потом submit — тот заново парсит тот же самый qrData у того же
+// ОФД (намеренно: submit никогда не доверяет данным чека от клиента,
+// пересчитывает их сам, см. комментарий у handleReceiptSubmission). Раньше
+// это означало для пользователя два независимых похода к внешнему ОФД
+// подряд — если тот медленный (см. OOFD_REQUEST_TIMEOUT_MS выше), пользователь
+// ждал дважды. Короткий in-process кэш даёт submit переиспользовать ответ,
+// который readOFD уже получил секунды/минуты назад — источник данных
+// по-прежнему сам ОФД (не клиент), проверка на подделку не ослабляется,
+// просто не спрашиваем то же самое второй раз. Фискальный чек не меняется
+// после выпуска, поэтому кэш безопасен даже с запасом на 5 минут.
+const OFD_RESPONSE_CACHE_TTL_MS = 5 * 60 * 1000
+const OFD_RESPONSE_CACHE_MAX_SIZE = 500
+const ofdResponseCache = new Map<string, { data: any; expiresAt: number }>()
+
+const getCachedOfdResponse = (cacheKey: string) => {
+    const entry = ofdResponseCache.get(cacheKey)
+    if (!entry) return null
+    if (Date.now() > entry.expiresAt) {
+        ofdResponseCache.delete(cacheKey)
+        return null
+    }
+    return { ...entry.data } // неглубокая копия — вызывающий код не должен мутировать общий кэш
+}
+
+const setCachedOfdResponse = (cacheKey: string, data: any) => {
+    if (ofdResponseCache.size >= OFD_RESPONSE_CACHE_MAX_SIZE) {
+        const oldestKey = ofdResponseCache.keys().next().value
+        if (oldestKey) ofdResponseCache.delete(oldestKey)
+    }
+    ofdResponseCache.set(cacheKey, { data, expiresAt: Date.now() + OFD_RESPONSE_CACHE_TTL_MS })
 }
 
 export const parseReceiptByOfdType = async (
@@ -31,16 +91,30 @@ export const parseReceiptByOfdType = async (
     ofdType: 'oofd' | 'kofd' | 'wofd',
     { strapi }: { strapi: any }
 ) => {
+    const cacheKey = `${ofdType}:${qrData}`
+    const cached = getCachedOfdResponse(cacheKey)
+    if (cached) {
+        strapi.log.info(`[OFD Cache] Повторный запрос для ${ofdType} не нужен — использую ответ, полученный ранее`)
+        return cached
+    }
+
+    let result: any
     switch (ofdType) {
         case 'oofd':
-            return await parseOofdReceipt(qrData, { strapi })
+            result = await parseOofdReceipt(qrData, { strapi })
+            break
         case 'kofd':
-            return await parseKofdReceipt(qrData, { strapi })
+            result = await parseKofdReceipt(qrData, { strapi })
+            break
         case 'wofd':
-            return await parseWofdReceipt(qrData, { strapi })
+            result = await parseWofdReceipt(qrData, { strapi })
+            break
         default:
             throw new Error(`Unsupported OFD type: ${ofdType}`)
     }
+
+    setCachedOfdResponse(cacheKey, result)
+    return result
 }
 
 const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => {
@@ -62,7 +136,7 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
     })
 
     try {
-        const response = await requestWithRetry(apiUrl, httpsAgent, strapi, 'OOFD')
+        const response = await requestWithRetry(apiUrl, httpsAgent, strapi, 'OOFD', OOFD_REQUEST_TIMEOUT_MS)
 
         let data
         try {
