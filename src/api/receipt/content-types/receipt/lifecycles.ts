@@ -4,10 +4,20 @@ import { checkReferralInvitationTask } from '../../../../utils/check-referral-in
 import { updateScanFirstReceiptsTaskProgress } from '../../../../utils/update-scan-task-progress';
 import { createNotification } from '../../../../utils/create-notification';
 import { formatCurrency } from '../../../../utils/format-currency';
+import { reconcileReceiptDeposits } from '../../../../utils/reconcile-receipt-deposits';
 
 export default {
   async afterCreate(event: any) {
     const { result } = event;
+    // Сверка депозитов — ДО пересчёта баланса внутри handleReceiptLifecycle,
+    // чтобы исчерпанные позиции (cashback обнулён) уже учлись в самом первом
+    // расчёте баланса пользователя, а не потребовали второго прохода.
+    // reconcileReceiptDeposits сама корректно присоединяется к ещё не
+    // закоммиченной транзакции create() (через strapi.db.transaction(), см.
+    // подробный разбор в reconcile-receipt-deposits.ts) — порядок вызова
+    // здесь ни на что не влияет, это просто более простая и правильная по
+    // смыслу последовательность.
+    await reconcileReceiptDeposits(strapi, result.id);
     await handleReceiptLifecycle(result, { previousVerificationStatus: null });
   },
 
