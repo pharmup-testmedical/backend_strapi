@@ -337,3 +337,95 @@ async function markReconciliationFailed(strapi: Core.Strapi, receiptId: number):
     strapi.log.error(`[reconcileReceiptDepositsSafely] Не удалось даже пометить чек ${receiptId} как отложенный: ${e.message}`);
   }
 }
+
+export interface DepositRelease {
+  supplierId: number;
+  amount: number;
+}
+
+/**
+ * Удаление чека (этап 2, подэтап 4, сценарий «удалили чек») — ОТДЕЛЬНЫЙ путь
+ * от reconcileReceiptDeposits: та читает строку чека по id, чтобы посчитать
+ * target/current/delta, а после DELETE строки уже нет — она бы тихо
+ * ничего не сделала (if (!receiptRowRaw) return), и списанное зависло бы в
+ * депозите навсегда. Поэтому вызывающий код (lifecycles.ts, beforeDelete)
+ * обязан захватить fundingSupplier+depositDeductedAmount ПОКА строка ещё
+ * жива, и передать сюда — эта функция только БЕЗУСЛОВНО возвращает ровно
+ * захваченные суммы (симметрично ветке delta<0 в reconcileReceiptDeposits —
+ * там тоже возврат ничем не обусловлен).
+ *
+ * Важно: releases должны нести именно ФАКТИЧЕСКИ списанное
+ * (item.depositDeductedAmount — единственный источник истины, как и везде
+ * в этом файле), а не «сколько должно было списаться». Если у позиции
+ * стоит depositReconciliationFailedAt (сверка не удалась и не была
+ * доведена до конца — см. reconcileReceiptDepositsSafely) — deposit_deducted_amount
+ * для неё и так 0 (списания не произошло), значит и возвращать нечего;
+ * никакой отдельной обработки этого поля здесь не нужно, оно просто не
+ * влияет — сумма возврата берётся из того же поля, что было бы источником
+ * истины в любом случае.
+ *
+ * Идемпотентность: свойство этой функции, а не гарантия — она ДОБАВЛЯЕТ
+ * ровно то, что ей передали, без каких-либо проверок текущего состояния
+ * (проверять больше нечего, строки чека уже нет). Двойной вызов с ОДНИМ и
+ * тем же набором releases задвоит возврат. Безопасность от задвоения
+ * обеспечивается на уровне вызывающего кода (lifecycles.ts вызывает это
+ * ровно один раз на одно реальное DELETE — см. там) и на уровне того, что
+ * beforeDelete физически не может дважды прочитать одну и ту же строку с
+ * ненулевым depositDeductedAmount, если её кто-то уже удалил между двумя
+ * конкурентными delete() одного documentId — второй delete() просто не
+ * найдёт строку и получит пустой список releases (проверено тестом).
+ */
+export async function releaseReceiptItemDeposits(strapi: Core.Strapi, releases: DepositRelease[]): Promise<void> {
+  const meaningful = releases.filter((r) => r.amount > EPSILON);
+  if (meaningful.length === 0) return;
+
+  const supplierIds = Array.from(new Set(meaningful.map((r) => r.supplierId)));
+  const depositDocs = await strapi.db.query('api::supplier-cashback-deposit.supplier-cashback-deposit').findMany({
+    where: { supplier: { id: { $in: supplierIds } } },
+    select: ['id'],
+    populate: { supplier: { select: ['id'] } },
+  });
+  const depositIdBySupplierId = new Map<number, number>();
+  for (const d of depositDocs as any[]) {
+    if (d.supplier?.id != null) depositIdBySupplierId.set(d.supplier.id, d.id);
+  }
+
+  await strapi.db.transaction(async ({ trx }: { trx: any }) => {
+    const knex = strapi.db.connection;
+    for (const release of meaningful) {
+      const depositId = depositIdBySupplierId.get(release.supplierId);
+      // Поставщик (и его депозит) мог быть удалён вместе с чеком в рамках
+      // той же операции очистки данных — возвращать некуда, не ошибка.
+      if (depositId == null) continue;
+      await knex('supplier_cashback_deposits').transacting(trx).where('id', depositId).increment('balance', release.amount);
+    }
+  });
+}
+
+/**
+ * Обёртка с ретраем на дедлок — тот же принцип, что и reconcileReceiptDepositsSafely.
+ * В отличие от неё, здесь нет «худшего случая» с отдельным полем-меткой:
+ * если все попытки исчерпаны, просто логируем и пробрасываем ошибку дальше
+ * — вызывающий код (lifecycles.ts, afterDelete) решает, что делать (сам чек
+ * уже удалён и это не откатить; невозвращённая сумма — сама по себе
+ * заметный лог для последующего ручного разбора, не более).
+ */
+export async function releaseReceiptItemDepositsSafely(strapi: Core.Strapi, releases: DepositRelease[]): Promise<void> {
+  for (let attempt = 1; attempt <= DEADLOCK_RETRY_ATTEMPTS; attempt++) {
+    try {
+      await releaseReceiptItemDeposits(strapi, releases);
+      return;
+    } catch (error: any) {
+      if (!isDeadlockError(error) || attempt === DEADLOCK_RETRY_ATTEMPTS) {
+        strapi.log.error(
+          `[releaseReceiptItemDepositsSafely] Возврат депозита не удался после ${attempt} попыт(ки/ок) — ${error?.message}. releases=${JSON.stringify(releases)}`
+        );
+        throw error;
+      }
+      strapi.log.warn(
+        `[releaseReceiptItemDepositsSafely] Дедлок на попытке ${attempt}/${DEADLOCK_RETRY_ATTEMPTS}, повтор через ${DEADLOCK_RETRY_BASE_DELAY_MS * attempt}мс`
+      );
+      await new Promise((resolve) => setTimeout(resolve, DEADLOCK_RETRY_BASE_DELAY_MS * attempt));
+    }
+  }
+}
