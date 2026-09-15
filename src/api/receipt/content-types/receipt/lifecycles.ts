@@ -4,20 +4,22 @@ import { checkReferralInvitationTask } from '../../../../utils/check-referral-in
 import { updateScanFirstReceiptsTaskProgress } from '../../../../utils/update-scan-task-progress';
 import { createNotification } from '../../../../utils/create-notification';
 import { formatCurrency } from '../../../../utils/format-currency';
-import { reconcileReceiptDeposits } from '../../../../utils/reconcile-receipt-deposits';
 
 export default {
   async afterCreate(event: any) {
     const { result } = event;
-    // Сверка депозитов — ДО пересчёта баланса внутри handleReceiptLifecycle,
-    // чтобы исчерпанные позиции (cashback обнулён) уже учлись в самом первом
-    // расчёте баланса пользователя, а не потребовали второго прохода.
-    // reconcileReceiptDeposits сама корректно присоединяется к ещё не
-    // закоммиченной транзакции create() (через strapi.db.transaction(), см.
-    // подробный разбор в reconcile-receipt-deposits.ts) — порядок вызова
-    // здесь ни на что не влияет, это просто более простая и правильная по
-    // смыслу последовательность.
-    await reconcileReceiptDeposits(strapi, result.id);
+    // Сверка депозитов сюда НЕ входит — она сознательно вынесена из
+    // транзакции create() в отдельный вызов reconcileReceiptDepositsSafely,
+    // выполняемый вызывающим кодом (receipt/controllers/receipt.ts) СРАЗУ
+    // ПОСЛЕ того, как create() уже вернул результат и транзакция чека
+    // закоммичена — см. подробный разбор архитектуры и причину (MySQL-
+    // дедлок ронял бы весь чек) в шапке reconcile-receipt-deposits.ts.
+    // Поэтому здесь handleReceiptLifecycle (и его пересчёт баланса) может
+    // отработать по чуть более старым cashback-значениям позиций, если
+    // среди них есть которые сверка обнулит из-за исчерпания депозита —
+    // это не потеря: reconcileReceiptDepositsSafely после себя тоже
+    // вызывает updateUserBalance (см. controllers/receipt.ts), так что
+    // баланс пользователя досчитывается вторым проходом сразу следом.
     await handleReceiptLifecycle(result, { previousVerificationStatus: null });
   },
 

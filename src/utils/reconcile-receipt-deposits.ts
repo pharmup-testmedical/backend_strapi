@@ -23,33 +23,51 @@ import type { Core } from '@strapi/strapi';
  * Manager, не эта функция.
  *
  * ВАЖНО (по итогам расследования 2026-09-14, несколько неверных гипотез по
- * пути — см. git-историю этого файла, если интересны детали): вызов ИЗНУТРИ
- * afterCreate ЭТОГО ЖЕ чека происходит, пока create() ещё держит открытую
- * ТРАНЗАКЦИЮ (не просто соединение из пула — саму транзакцию, до commit).
+ * пути — см. git-историю этого файла, если интересны детали): изначально
+ * эта функция вызывалась ИЗНУТРИ afterCreate этого же чека, пока create()
+ * ещё держал открытую ТРАНЗАКЦИЮ (не просто соединение из пула — саму
+ * транзакцию, до commit).
  *   • Чтение — через strapi.db.query(), не через голый strapi.db.connection:
  *     db.query() участвует в текущей транзакции автоматически (через
  *     AsyncLocalStorage у @strapi/database, transaction-context.js), поэтому
  *     корректно видит ещё не закоммиченные строки. Голый knex-инстанс без
  *     этого не в курсе транзакции — берёт независимое соединение и просто
  *     не находит только что созданные строки (молча, без ошибки).
- *   • Запись — по-прежнему сырой knex (нужна атомарная условная запись
+ *   • Запись — сырой knex (нужна атомарная условная запись
  *     `WHERE balance >= delta` в одном UPDATE, которую db.query() не даёт:
- *     он строго валидирует data как число, сырое SQL-выражение отклоняет),
- *     но теперь ЯВНО присоединена к той же транзакции через
- *     strapi.db.transaction() — он сам обнаруживает уже открытую внешнюю
- *     транзакцию (той же AsyncLocalStorage-магией) и отдаёт её же, не
- *     создавая новую. Без этого сырой knex пытался открыть НЕЗАВИСИМУЮ
- *     запись — SQLite же допускает только одного писателя одновременно,
- *     отсюда "database is locked" (это уже настоящая блокировка движка,
- *     не путать с более ранним KnexTimeoutError про пул соединений — тот
- *     был устранён отдельно, увеличением pool.max для sqlite в
- *     config/database.ts).
+ *     он строго валидирует data как число, сырое SQL-выражение отклоняет).
+ *
+ * ВАЖНО (расследование 2026-09-21, MySQL, реальная конкурентность): пока
+ * сверка была вложена в транзакцию create() чека, два ОДНОВРЕМЕННЫХ чека
+ * одного поставщика на MySQL (InnoDB, настоящие построчные блокировки — не
+ * путать с SQLite, где запись физически сериализована самим движком и
+ * гонки как таковой не бывает) иногда ловили настоящий ER_LOCK_DEADLOCK.
+ * Так как сверка была частью транзакции создания чека, дедлок откатывал
+ * ВЕСЬ чек целиком — пользователю пришлось бы пересканировать чек заново
+ * (включая поход в ОФД), хотя сам факт покупки тут ни при чём. По
+ * решению (2026-09-21): создание чека (факт покупки) и списание депозита
+ * (учёт обязательства перед поставщиком) — разные по смыслу события,
+ * поэтому сверка ВЫНЕСЕНА из транзакции create() в отдельный вызов СРАЗУ
+ * ПОСЛЕ того, как чек уже создан и закоммичен — см. reconcileReceiptDepositsSafely
+ * ниже и её вызовы в receipt/controllers/receipt.ts (НЕ в lifecycles.ts —
+ * там сверки больше нет).
+ *   • Раз сверка больше не выполняется внутри чужой открытой транзакции,
+ *     strapi.db.query() для чтения и strapi.db.transaction()+.transacting(trx)
+ *     для записи здесь используются уже не для "присоединения к внешней
+ *     транзакции", а просто как собственная короткая атомарная транзакция
+ *     этой функции (тот же API, другая роль) — гарантия атомарности
+ *     WHERE balance >= delta остаётся ровно той же.
+ *   • Дедлок на MySQL по-прежнему возможен (это нормальное поведение
+ *     InnoDB под конкурентной нагрузкой на одну и ту же строку депозита,
+ *     не баг) — но теперь он ловится и гасится ретраем в
+ *     reconcileReceiptDepositsSafely, не долетая до пользователя и не
+ *     трогая уже созданный чек.
  * Это НЕ триггерит рекурсивный afterUpdate и не запускает O(N²) пересчёт
  * баланса на каждую позицию (тот же принцип, что уже спас прод в
  * v3_backfill_organization_city.js) — сырой knex остаётся именно поэтому,
- * не из-за проблем с видимостью/блокировкой, которые решены выше. Пересчёт
- * баланса пользователя делает вызывающий код ОТДЕЛЬНО, один раз, ПОСЛЕ этой
- * функции — см. receipt/content-types/receipt/lifecycles.ts.
+ * не из-за проблем с видимостью/блокировкой. Пересчёт баланса пользователя
+ * делает вызывающий код ОТДЕЛЬНО, один раз, ПОСЛЕ reconcileReceiptDepositsSafely
+ * — см. вызовы в receipt/controllers/receipt.ts.
  */
 
 const EPSILON = 0.01;
@@ -172,7 +190,9 @@ export async function reconcileReceiptDeposits(strapi: Core.Strapi, receiptId: n
       if (delta < 0) {
         // Возврат — событие отклонения/пересчёта, всегда проходит.
         await depositTable().where('id', depositId).increment('balance', -delta);
-        await itemTable().where('id', item.item_id).update({ deposit_deducted_amount: target });
+        await itemTable()
+          .where('id', item.item_id)
+          .update({ deposit_deducted_amount: target, deposit_reconciliation_failed_at: null });
         continue;
       }
 
@@ -182,7 +202,9 @@ export async function reconcileReceiptDeposits(strapi: Core.Strapi, receiptId: n
       const affected = await depositTable().where('id', depositId).where('balance', '>=', delta).decrement('balance', delta);
 
       if (affected > 0) {
-        await itemTable().where('id', item.item_id).update({ deposit_deducted_amount: target });
+        await itemTable()
+          .where('id', item.item_id)
+          .update({ deposit_deducted_amount: target, deposit_reconciliation_failed_at: null });
       } else {
         // Не хватило — позиция целиком уходит в исчерпание (не частично):
         // возвращаем то, что уже могло быть зарезервировано на предыдущем
@@ -195,6 +217,7 @@ export async function reconcileReceiptDeposits(strapi: Core.Strapi, receiptId: n
           deposit_deducted_amount: 0,
           deposit_exhausted: true,
           cashback: 0,
+          deposit_reconciliation_failed_at: null,
         });
         effectiveCashbackByItemId.set(item.item_id, 0);
       }
@@ -219,4 +242,98 @@ export async function reconcileReceiptDeposits(strapi: Core.Strapi, receiptId: n
       }
     }
   });
+}
+
+const DEADLOCK_RETRY_ATTEMPTS = 3;
+const DEADLOCK_RETRY_BASE_DELAY_MS = 75;
+
+function isDeadlockError(error: any): boolean {
+  return error?.code === 'ER_LOCK_DEADLOCK' || /deadlock/i.test(error?.message ?? '');
+}
+
+/**
+ * Обёртка над reconcileReceiptDeposits с ретраем на MySQL-дедлок — это
+ * единственная точка входа, которую должен вызывать остальной код (контроллер
+ * receipt.ts, СРАЗУ ПОСЛЕ того, как чек уже создан и закоммичен, не раньше —
+ * см. разбор архитектуры в шапке файла).
+ *
+ * Дедлок здесь — не признак недостатка депозита, а временная накладка
+ * движка БД под конкурентной нагрузкой (несколько чеков одного поставщика
+ * одновременно). Ретраим с небольшим нарастающим бэкоффом (75/150/225мс —
+ * этого достаточно, чтобы конкурирующая транзакция успела закоммититься и
+ * отпустить блокировку строки депозита, но не настолько много, чтобы
+ * заметно задержать ответ пользователю).
+ *
+ * Худший случай — дедлок не разрешился за все попытки: чек уже существует
+ * (это НЕ откатывается, он был закоммичен ДО этого вызова), но депозит по
+ * нему ещё не сверен. НЕ используем depositExhausted для этого случая — тот
+ * означает "депозита ГЕНУИННО не хватило", липкий навсегда даже после
+ * пополнения; здесь же денег могло быть вполне достаточно, просто сверку
+ * не удалось провести технически. Вместо этого — отдельное поле
+ * depositReconciliationFailedAt (receipt-item/item.json): позиция и её
+ * cashback остаются как были ДО сверки (обычно как посчитано при парсинге
+ * чека), ничего не обнуляем и ничего не депозитируем — самоисцеляется:
+ * следующий ЛЮБОЙ успешный вызов reconcileReceiptDeposits (например, при
+ * сверке следующего чека того же поставщика, или ручной повторный вызов
+ * из админки) пересчитает delta с нуля и корректно спишет/спишет-обратно
+ * то, что нужно, и сам сотрёт deposit_reconciliation_failed_at — никакой
+ * специальной логики "разморозки" не требуется, это тот же идемпотентный
+ * путь, что уже используется для depositExhausted... с одной разницей:
+ * depositReconciliationFailedAt НЕ блокирует target (в отличие от
+ * alreadyExhausted в reconcileReceiptDeposits) — позиция остаётся
+ * полноценным кандидатом на списание при следующем проходе, ровно потому
+ * что мы не знаем, было бы списание успешным или нет.
+ */
+export async function reconcileReceiptDepositsSafely(strapi: Core.Strapi, receiptId: number): Promise<void> {
+  for (let attempt = 1; attempt <= DEADLOCK_RETRY_ATTEMPTS; attempt++) {
+    try {
+      await reconcileReceiptDeposits(strapi, receiptId);
+      return;
+    } catch (error: any) {
+      if (!isDeadlockError(error) || attempt === DEADLOCK_RETRY_ATTEMPTS) {
+        strapi.log.error(
+          `[reconcileReceiptDepositsSafely] Чек ${receiptId}: сверка депозита не удалась после ${attempt} попыт(ки/ок) — ${error?.message}. Чек НЕ трогаю, помечаю позиции как отложенные.`
+        );
+        await markReconciliationFailed(strapi, receiptId);
+        return;
+      }
+      strapi.log.warn(
+        `[reconcileReceiptDepositsSafely] Чек ${receiptId}: дедлок на попытке ${attempt}/${DEADLOCK_RETRY_ATTEMPTS}, повтор через ${DEADLOCK_RETRY_BASE_DELAY_MS * attempt}мс`
+      );
+      await new Promise((resolve) => setTimeout(resolve, DEADLOCK_RETRY_BASE_DELAY_MS * attempt));
+    }
+  }
+}
+
+/**
+ * Худший случай: все ретраи исчерпаны. Помечаем только те позиции этого
+ * чека, у которых есть fundingSupplier (остальные сверке не подлежат в
+ * принципе) — простановкой deposit_reconciliation_failed_at. Идём напрямую
+ * через knex по служебным таблицам dynamiczone-компонента (receipts_cmps —
+ * связка чек↔компонент, components_receipt_item_items_funding_supplier_lnk
+ * — связка позиция↔поставщик), а не через strapi.db.query()/Document
+ * Service: на этом этапе мы уже вне транзакции reconcileReceiptDeposits
+ * (та откатилась целиком при дедлоке), и это финальная запись, которой
+ * не нужна атомарность с чем-либо ещё — только простой UPDATE.
+ */
+async function markReconciliationFailed(strapi: Core.Strapi, receiptId: number): Promise<void> {
+  try {
+    const knex = strapi.db.connection;
+    const itemIds: { id: number }[] = await knex('receipts_cmps as rc')
+      .join('components_receipt_item_items as cri', 'cri.id', 'rc.cmp_id')
+      .join('components_receipt_item_items_funding_supplier_lnk as fsl', 'fsl.item_id', 'cri.id')
+      .where('rc.entity_id', receiptId)
+      .where('rc.field', 'items')
+      .where('rc.component_type', 'receipt-item.item')
+      .select('cri.id as id');
+    if (itemIds.length === 0) return;
+    await knex('components_receipt_item_items')
+      .whereIn(
+        'id',
+        itemIds.map((r) => r.id)
+      )
+      .update({ deposit_reconciliation_failed_at: new Date() });
+  } catch (e: any) {
+    strapi.log.error(`[reconcileReceiptDepositsSafely] Не удалось даже пометить чек ${receiptId} как отложенный: ${e.message}`);
+  }
 }

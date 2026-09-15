@@ -12,6 +12,8 @@ import {
   resolveEffectiveCashbackAmount,
   CityRateOverride,
 } from '../../../utils/resolve-city-cashback-rate'
+import { reconcileReceiptDepositsSafely } from '../../../utils/reconcile-receipt-deposits'
+import { updateUserBalance } from '../../../utils/calculate-user-balance'
 
 // ==================== EXPORTED TYPES ====================
 export type ReceiptVerificationStatus =
@@ -282,6 +284,12 @@ export default factories.createCoreController('api::receipt.receipt', ({ strapi 
 
       strapi.log.info(`[submitPhoto] Created photo-submitted receipt ${receipt.documentId} for user ${userId}`);
 
+      // Сверка депозита — СРАЗУ ПОСЛЕ create(), не внутри его транзакции.
+      // См. разбор архитектуры (почему вынесено) в шапке
+      // reconcile-receipt-deposits.ts и тот же вызов в handleReceiptSubmission.
+      await reconcileReceiptDepositsSafely(strapi, Number(receipt.id));
+      await updateUserBalance(ctx.state.user.documentId);
+
       return ctx.created({
         message: 'Чек отправлен на проверку администратору',
         receipt,
@@ -500,6 +508,18 @@ async function handleReceiptSubmission(ctx: any, isForTask: boolean = false) {
   );
 
   const result = await processAndCreateReceipt(context, receiptData, items, hasVerified, hasRejected, hasNonVerified, isForTask);
+
+  // Сверка депозита — СРАЗУ ПОСЛЕ create(), а не внутри его транзакции (см.
+  // разбор архитектуры и причину — MySQL-дедлок ронял бы весь чек — в шапке
+  // reconcile-receipt-deposits.ts). Чек к этому моменту уже создан и
+  // закоммичен, поэтому дедлок/исчерпанный ретрай здесь НЕ откатывает чек —
+  // максимум позиция уйдёт в depositExhausted или, в худшем случае,
+  // depositReconciliationFailedAt (самоисцелится при следующей сверке).
+  // updateUserBalance — отдельным вызовом следом, чтобы баланс учитывал уже
+  // скорректированный (после сверки) cashback позиций, а не более раннее
+  // значение, посчитанное afterCreate до этого вызова.
+  await reconcileReceiptDepositsSafely(strapi, Number(result.receipt.id));
+  await updateUserBalance(ctx.state.user.documentId);
 
   await syncReceiptToSheet({
     receipt: result.receipt,

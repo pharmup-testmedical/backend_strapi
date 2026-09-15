@@ -87,6 +87,7 @@ export interface ReceiptItemItem extends Struct.ComponentSchema {
     depositExhausted: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
+    depositReconciliationFailedAt: Schema.Attribute.DateTime;
     fundingSupplier: Schema.Attribute.Relation<
       'oneToOne',
       'api::supplier.supplier'
