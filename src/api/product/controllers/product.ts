@@ -44,6 +44,13 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                     image: {
                         fields: ['url', 'name', 'alternativeText'],
                     },
+                    // Только для фильтра по исчерпанному депозиту ниже — не
+                    // отдаётся клиенту (см. .map() ниже, cashbackSupplier не
+                    // копируется в ответ, структура /products/available не
+                    // меняется).
+                    cashbackSupplier: {
+                        fields: ['id'],
+                    },
                 },
                 fields: ['id', 'canonicalName', 'article', 'barcode', 'ntin', 'ntinAlternative', 'cashbackEligible', 'cashbackAmount', 'unpublishDate'],
                 publicationState: 'live',
@@ -67,16 +74,54 @@ export default factories.createCoreController('api::product.product', ({ strapi 
                 cityId
             );
 
+            // Депозит поставщика (этап 2, подэтап 3) — товар пропадает из
+            // выдачи, если депозит финансирующего поставщика исчерпан
+            // (balance <= 0). Батч-выборка ОДНИМ запросом на все supplierId
+            // сразу (тот же принцип, что и у cityOverrides выше — не N+1).
+            // Товар без cashbackSupplier (fields: ['id'] выше = null, если
+            // связи нет) этим фильтром не трогается вовсе. Товар С
+            // cashbackSupplier, но у которого поставщика ЕЩЁ нет записи
+            // депозита (админ не завершил настройку) — тоже не трогается,
+            // отсутствие записи ≠ исчерпание (то же решение, что уже
+            // принято для reconcileReceiptDeposits, см. depositId==null
+            // там).
+            const supplierIdsForDeposit = Array.from(
+                new Set(notExpired.map((p: any) => p.cashbackSupplier?.id).filter((id: any) => id != null))
+            );
+            const depositBalanceBySupplierId = new Map<number, number>();
+            if (supplierIdsForDeposit.length > 0) {
+                const deposits = await strapi.db.query('api::supplier-cashback-deposit.supplier-cashback-deposit').findMany({
+                    where: { supplier: { id: { $in: supplierIdsForDeposit } } },
+                    select: ['balance'],
+                    populate: { supplier: { select: ['id'] } },
+                });
+                for (const d of deposits as any[]) {
+                    if (d.supplier?.id != null) depositBalanceBySupplierId.set(d.supplier.id, Number(d.balance) || 0);
+                }
+            }
+
             const availableProducts = notExpired
                 .filter((product: any) => cityOverrides.get(product.id)?.visible !== false)
-                .map((product: any) => ({
-                    ...product,
-                    cashbackAmount: resolveEffectiveCashbackAmount(
-                        product.cashbackAmount || 0,
-                        product.id,
-                        cityOverrides
-                    ),
-                }));
+                .filter((product: any) => {
+                    const supplierId = product.cashbackSupplier?.id;
+                    if (supplierId == null) return true; // без привязки к поставщику — не фильтруется
+                    const balance = depositBalanceBySupplierId.get(supplierId);
+                    if (balance === undefined) return true; // депозит ещё не заведён — не ограничиваем
+                    return balance > 0;
+                })
+                .map((product: any) => {
+                    // cashbackSupplier был подгружен только для фильтра выше —
+                    // клиенту не отдаём, чтобы не менять структуру ответа.
+                    const { cashbackSupplier, ...productWithoutSupplier } = product;
+                    return {
+                        ...productWithoutSupplier,
+                        cashbackAmount: resolveEffectiveCashbackAmount(
+                            product.cashbackAmount || 0,
+                            product.id,
+                            cityOverrides
+                        ),
+                    };
+                });
 
             if (availableProducts.length === 0) {
                 strapi.log.info(`No cashback-eligible products found for user ${ctx.state.user.id}`);
