@@ -5,6 +5,16 @@ export const isValidDate = (dateString: string): boolean => {
     return !isNaN(Date.parse(dateString))
 }
 
+// Допуск для сравнения денежных сумм, посчитанных через сложение/вычитание
+// float — тот же принцип, что и EPSILON в депозитной логике
+// (reconcile-receipt-deposits.ts). Строгое === на суммах, прошедших через
+// вычитание скидок, ловит погрешность двоичного представления дробных
+// чисел (напр. 1300.00 − 68.07 − 23.56 − ... даёт 1810.0000000000002,
+// не 1810), а не реальное расхождение — подтверждено эмпирически на
+// реальном чеке ОФД (1 копейка разницы даже не нужна, это чисто IEEE-754
+// шум) 2026-09-18.
+const AMOUNT_EPSILON = 0.01
+
 // OFD APIs (oofd/kofd/wofd) are external government-adjacent services.
 // KOFD/WOFD respond quickly in practice, so the original short timeout
 // stays for them. consumer.oofd.kz is different — confirmed empirically
@@ -251,7 +261,7 @@ const parseOofdReceipt = async (qrLink: string, { strapi }: { strapi: any }) => 
 
         if (items.length > 0) {
             const itemsTotal = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
-            if (itemsTotal !== totalAmount) {
+            if (Math.abs(itemsTotal - totalAmount) > AMOUNT_EPSILON) {
                 strapi.log.warn(`Total amount mismatch: items total (${itemsTotal}) does not match ticket total (${totalAmount})`)
                 throw new Error('Invalid receipt data: sum of items totals does not match total amount')
             }
