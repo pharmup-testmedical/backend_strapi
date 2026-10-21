@@ -169,6 +169,15 @@ export interface SettingsBanking extends Struct.ComponentSchema {
     minWithdrawAmount: Schema.Attribute.Decimal &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<500>;
+    withdrawProcessingDays: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<3>;
   };
 }
 
