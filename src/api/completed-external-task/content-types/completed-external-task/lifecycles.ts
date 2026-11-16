@@ -1,3 +1,4 @@
+import { errors } from '@strapi/utils'
 import { updateUserBalance } from '../../../../utils/calculate-user-balance'
 import { createNotification } from '../../../../utils/create-notification'
 import { formatCurrency } from '../../../../utils/format-currency'
@@ -8,17 +9,16 @@ import { formatCurrency } from '../../../../utils/format-currency'
 // начислений, а пересчёт с нуля от текущего состояния. Поэтому повторное
 // сохранение уже approved записи, а также approved → pending → approved,
 // не могут начислить бонус второй раз — на любой момент пересчёта он либо
-// учтён один раз (status === 'approved'), либо не учтён вовсе. Тем же
-// способом одобренная-затем-отклонённая заявка автоматически вычитается
-// из баланса на следующем пересчёте — отдельной логики "списать обратно"
-// не требуется (это тот же паттерн балансировки, что уже используется для
-// cashback-request и completed-task в этом проекте).
+// учтён один раз (status === 'approved'), либо не учтён вовсе.
 //
-// НО: если к моменту отклонения бонус уже был реально выведен
-// пользователем (вывод обрабатывает администратор вручную), баланс в
-// системе уйдёт в минус — это не чинится кодом, это процессная
-// договорённость (как и для остальных типов начислений в проекте):
-// отклонять одобренную заявку нужно до следующей заявки на вывod.
+// approved → rejected ЗАПРЕЩЁН ниже (beforeUpdate) — не из-за самого
+// механизма пересчёта (он бы корректно вычел сумму на следующем
+// пересчёте), а из-за того, что к моменту отклонения бонус мог уже быть
+// реально выведен пользователем (вывод обрабатывает администратор
+// вручную) — баланс ушёл бы в минус БЕЗ видимого следа в "Истории
+// транзакций" (одобренная запись просто исчезла бы из суммы). Решение
+// (согласовано): если одобрение оказалось ошибкой, исправлять вручную
+// вне этого статуса, а не через автоматическое списание.
 const syncBalance = async (documentId: string) => {
     const record = await strapi.documents('api::completed-external-task.completed-external-task').findOne({
         documentId,
@@ -31,7 +31,7 @@ const syncBalance = async (documentId: string) => {
 
 export default {
     async beforeUpdate(event: any) {
-        const { where } = event.params
+        const { where, data } = event.params
         const record = await strapi.db.query('api::completed-external-task.completed-external-task').findOne({
             where,
             populate: ['user'],
@@ -39,6 +39,12 @@ export default {
         event.state = {
             previousUserDocumentId: record?.user?.documentId,
             previousStatus: record?.status,
+        }
+
+        if (record?.status === 'approved' && data?.status === 'rejected') {
+            throw new errors.ValidationError(
+                'Нельзя отклонить уже одобренное задание — начисление выполнено. Исправление — вручную.'
+            )
         }
     },
 
