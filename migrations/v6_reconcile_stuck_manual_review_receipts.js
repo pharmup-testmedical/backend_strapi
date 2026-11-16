@@ -26,49 +26,69 @@
  *
  * Идемпотентно: чек, который уже вышел из manual_review (в этом самом
  * проходе или раньше), больше не попадёт в выборку при повторном запуске.
+ *
+ * HOTFIX (как и в v4/v5): migration-v5p фатален для старта ВСЕГО Strapi
+ * при любой ошибке миграции — per-чек try/catch внутри цикла уже не даёт
+ * одной проблемной записи оборвать весь проход (это и была причина
+ * самого бага), но строки ВЫШЕ цикла (entityService.findMany, require)
+ * этим не защищены. Внешний try/catch — чтобы сбой там тоже не ронял
+ * сайт. Как и у v5: если функция не бросает исключение, плагин считает
+ * миграцию применённой независимо от того, что внутри — при внешней
+ * ошибке это НЕ повторится автоматически на следующем перезапуске, нужно
+ * разобраться по логу ("❌ Разбор зависших чеков провалился") и либо
+ * исправить причину и передеплоить, либо вручную сбросить версию в
+ * strapi_core_store_settings (ключ migrations5p_version), чтобы v6
+ * запустился снова.
  */
 module.exports = async () => {
     strapi.log.info('🚀 Разбор зависших чеков (псевдоним уже решён, чек всё ещё manual_review): старт')
 
-    const { updateReceiptStatus } = require('../dist/src/utils/determine-receipt-status')
+    try {
+        const { updateReceiptStatus } = require('../dist/src/utils/determine-receipt-status')
 
-    const receipts = await strapi.entityService.findMany('api::receipt.receipt', {
-        filters: { verificationStatus: 'manual_review' },
-        populate: {
-            items: {
-                on: {
-                    'receipt-item.item': {
-                        populate: { productAlias: true, props: true },
+        const receipts = await strapi.entityService.findMany('api::receipt.receipt', {
+            filters: { verificationStatus: 'manual_review' },
+            populate: {
+                items: {
+                    on: {
+                        'receipt-item.item': {
+                            populate: { productAlias: true, props: true },
+                        },
+                        'receipt-item.product-claim': {},
                     },
-                    'receipt-item.product-claim': {},
                 },
             },
-        },
-    })
+        })
 
-    const stuckReceipts = receipts.filter((receipt) =>
-        receipt.items.some(
-            (item) =>
-                item.__component === 'receipt-item.item' &&
-                item.productAlias &&
-                item.productAlias.verificationStatus !== 'unverified'
+        const stuckReceipts = receipts.filter((receipt) =>
+            receipt.items.some(
+                (item) =>
+                    item.__component === 'receipt-item.item' &&
+                    item.productAlias &&
+                    item.productAlias.verificationStatus !== 'unverified'
+            )
         )
-    )
 
-    strapi.log.info(`📊 Найдено ${stuckReceipts.length} зависших чеков из ${receipts.length} в manual_review`)
+        strapi.log.info(`📊 Найдено ${stuckReceipts.length} зависших чеков из ${receipts.length} в manual_review`)
 
-    let fixedCount = 0
-    let errorCount = 0
-    for (const receipt of stuckReceipts) {
-        try {
-            await updateReceiptStatus(receipt, strapi)
-            fixedCount++
-        } catch (error) {
-            errorCount++
-            strapi.log.error(`❌ Чек ${receipt.documentId}: не удалось дожать — ${error.message}`)
+        let fixedCount = 0
+        let errorCount = 0
+        for (const receipt of stuckReceipts) {
+            try {
+                await updateReceiptStatus(receipt, strapi)
+                fixedCount++
+            } catch (error) {
+                errorCount++
+                strapi.log.error(`❌ Чек ${receipt.documentId}: не удалось дожать — ${error.message}`)
+            }
         }
-    }
 
-    strapi.log.info(`📋 Разбор зависших чеков — итог: дожато ${fixedCount}, ошибок ${errorCount}`)
-    strapi.log.info('🏁 Разбор зависших чеков: готово')
+        strapi.log.info(`📋 Разбор зависших чеков — итог: дожато ${fixedCount}, ошибок ${errorCount}`)
+        strapi.log.info('🏁 Разбор зависших чеков: готово')
+    } catch (error) {
+        strapi.log.error(
+            `❌ Разбор зависших чеков провалился целиком (приложение продолжает запуск): ${error.message}`,
+            { stack: error.stack }
+        )
+    }
 }
