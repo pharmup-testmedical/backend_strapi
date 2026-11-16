@@ -1,5 +1,17 @@
 import type { Schema, Struct } from '@strapi/strapi';
 
+export interface CompletedTasksBusinessAwardsVoting
+  extends Struct.ComponentSchema {
+  collectionName: 'components_completed_tasks_business_awards_voting';
+  info: {
+    displayName: '\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u0430\u043D\u0438\u0435 Business Awards';
+    icon: 'trophy';
+  };
+  attributes: {
+    verificationNote: Schema.Attribute.String & Schema.Attribute.Required;
+  };
+}
+
 export interface CompletedTasksOtskanirujtePervyeCheki
   extends Struct.ComponentSchema {
   collectionName: 'components_completed_tasks_otskanirujte_pervye_cheki';
@@ -325,6 +337,7 @@ export interface TestVariantOtveta extends Struct.ComponentSchema {
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
+      'completed-tasks.business-awards-voting': CompletedTasksBusinessAwardsVoting;
       'completed-tasks.otskanirujte-pervye-cheki': CompletedTasksOtskanirujtePervyeCheki;
       'completed-tasks.postavit-oczenku': CompletedTasksPostavitOczenku;
       'completed-tasks.priglashenie-kolleg': CompletedTasksPriglashenieKolleg;

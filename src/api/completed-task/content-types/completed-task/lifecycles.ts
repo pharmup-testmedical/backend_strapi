@@ -1,3 +1,4 @@
+import { errors } from '@strapi/utils'
 import { updateUserBalance } from '../../../../utils/calculate-user-balance'
 import { createNotification } from '../../../../utils/create-notification'
 import { formatCurrency } from '../../../../utils/format-currency'
@@ -21,9 +22,52 @@ const TASK_LABELS: Record<string, string> = {
     sendInvitations: 'приглашение коллег',
     leaveRating: 'оценку приложения',
     scanFirstReceipts: 'сканирование первых чеков',
+    businessAwardsVoting: 'участие в голосовании Business Awards',
+}
+
+// Та же форма связи, что уже проверена эмпирически в product-alias/lifecycles.ts:
+// реальный Content Manager шлёт { connect: [...] } даже при первом назначении
+// связи на новой записи, собственные скрипты — { set: [...] }.
+function resolveUserRelationIds(data: any): number[] {
+    const rel = data?.user
+    if (!rel) return []
+    const entries: Array<{ id?: number }> = Array.isArray(rel.set)
+        ? rel.set
+        : Array.isArray(rel.connect)
+            ? rel.connect
+            : typeof rel === 'number'
+                ? [{ id: rel }]
+                : []
+    return entries.map((e) => e?.id).filter((id): id is number => typeof id === 'number')
+}
+
+// businessAwardsVoting начисляется вручную админом после проверки скрина в
+// Telegram-поддержке (см. Трек 1) — без этой проверки повторное создание
+// записи тому же пользователю (например, по ошибке) начислит бонус второй раз.
+async function assertNoDuplicateBusinessAwardsVoting(data: any) {
+    if (data?.task !== 'businessAwardsVoting') return
+
+    const userIds = resolveUserRelationIds(data)
+    if (userIds.length === 0) return
+
+    const existing = await strapi.db.query('api::completed-task.completed-task').findOne({
+        where: { task: 'businessAwardsVoting', user: { id: { $in: userIds } } },
+        populate: ['user'],
+    })
+
+    if (existing) {
+        throw new errors.ValidationError(
+            `Этому пользователю уже начислен бонус за голосование Business Awards (запись ID ${existing.id}). Повторное начисление не допускается.`
+        )
+    }
 }
 
 export default {
+    async beforeCreate(event: any) {
+        const { data } = event.params || {}
+        await assertNoDuplicateBusinessAwardsVoting(data)
+    },
+
     // Уведомление только здесь, в afterCreate — повторное выполнение того
     // же задания уже блокируется выше по стеку (проверка existingCompletion
     // в receipt-контроллере для submitForTask), так что дублей на afterUpdate

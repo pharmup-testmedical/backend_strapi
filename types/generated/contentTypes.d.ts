@@ -537,6 +537,7 @@ export interface ApiCompletedTaskCompletedTask
       [
         'completed-tasks.priglashenie-kolleg',
         'completed-tasks.otskanirujte-pervye-cheki',
+        'completed-tasks.business-awards-voting',
       ]
     > &
       Schema.Attribute.Required &
@@ -555,7 +556,12 @@ export interface ApiCompletedTaskCompletedTask
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     task: Schema.Attribute.Enumeration<
-      ['sendInvitations', 'leaveRating', 'scanFirstReceipts']
+      [
+        'sendInvitations',
+        'leaveRating',
+        'scanFirstReceipts',
+        'businessAwardsVoting',
+      ]
     > &
       Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;

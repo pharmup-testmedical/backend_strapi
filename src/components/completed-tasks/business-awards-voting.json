@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_completed_tasks_business_awards_voting",
+  "info": {
+    "displayName": "Голосование Business Awards",
+    "icon": "trophy"
+  },
+  "options": {},
+  "attributes": {
+    "verificationNote": {
+      "type": "string",
+      "required": true,
+      "description": "Например: «Проверено по скриншоту из Telegram, подтвердил @username»"
+    }
+  }
+}

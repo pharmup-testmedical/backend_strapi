@@ -16,7 +16,8 @@
       "enum": [
         "sendInvitations",
         "leaveRating",
-        "scanFirstReceipts"
+        "scanFirstReceipts",
+        "businessAwardsVoting"
       ],
       "required": true
     },
@@ -29,7 +30,8 @@
       "type": "dynamiczone",
       "components": [
         "completed-tasks.priglashenie-kolleg",
-        "completed-tasks.otskanirujte-pervye-cheki"
+        "completed-tasks.otskanirujte-pervye-cheki",
+        "completed-tasks.business-awards-voting"
       ],
       "required": true,
       "min": 1,
