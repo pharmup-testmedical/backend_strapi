@@ -509,6 +509,56 @@ export interface ApiCityCity extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCompletedExternalTaskCompletedExternalTask
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'completed_external_tasks';
+  info: {
+    description: '';
+    displayName: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0430 \u0432\u043D\u0435\u0448\u043D\u0435\u0435 \u0437\u0430\u0434\u0430\u043D\u0438\u0435';
+    pluralName: 'completed-external-tasks';
+    singularName: 'completed-external-task';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    externalTask: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::external-task.external-task'
+    >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-external-task.completed-external-task'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    rejectionReason: Schema.Attribute.Text;
+    rewardAmountAtSubmission: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    screenshot: Schema.Attribute.Media<'images'> & Schema.Attribute.Required;
+    status: Schema.Attribute.Enumeration<['pending', 'approved', 'rejected']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiCompletedTaskCompletedTask
   extends Struct.CollectionTypeSchema {
   collectionName: 'completed_tasks';
@@ -617,6 +667,57 @@ export interface ApiCompletedTestCompletedTest
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+  };
+}
+
+export interface ApiExternalTaskExternalTask
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'external_tasks';
+  info: {
+    description: '\u0423\u043D\u0438\u0432\u0435\u0440\u0441\u0430\u043B\u044C\u043D\u043E\u0435 \u0437\u0430\u0434\u0430\u043D\u0438\u0435 \u0441\u043E \u0432\u043D\u0435\u0448\u043D\u0435\u0439 \u0441\u0441\u044B\u043B\u043A\u043E\u0439 \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u043E\u0439 \u043F\u043E \u0441\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u0443 (\u0433\u043E\u043B\u043E\u0441\u043E\u0432\u0430\u043D\u0438\u044F, \u0432\u043D\u0435\u0448\u043D\u0438\u0435 \u0430\u043A\u0446\u0438\u0438 \u0438 \u0442.\u043F.)';
+    displayName: '\u0412\u043D\u0435\u0448\u043D\u0435\u0435 \u0437\u0430\u0434\u0430\u043D\u0438\u0435';
+    pluralName: 'external-tasks';
+    singularName: 'external-task';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    active: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<true>;
+    completions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-external-task.completed-external-task'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text & Schema.Attribute.Required;
+    endAt: Schema.Attribute.DateTime;
+    externalUrl: Schema.Attribute.String & Schema.Attribute.Required;
+    image: Schema.Attribute.Media<'images'>;
+    legacyCompletedTaskEquivalent: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::external-task.external-task'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    rewardAmount: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    startAt: Schema.Attribute.DateTime;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1865,6 +1966,10 @@ export interface PluginUsersPermissionsUser
       'api::cashback-request.cashback-request'
     >;
     city: Schema.Attribute.Relation<'oneToOne', 'api::city.city'>;
+    completedExternalTasks: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::completed-external-task.completed-external-task'
+    >;
     completedTasks: Schema.Attribute.Relation<
       'oneToMany',
       'api::completed-task.completed-task'
@@ -1950,8 +2055,10 @@ declare module '@strapi/strapi' {
       'api::cashback-request.cashback-request': ApiCashbackRequestCashbackRequest;
       'api::category.category': ApiCategoryCategory;
       'api::city.city': ApiCityCity;
+      'api::completed-external-task.completed-external-task': ApiCompletedExternalTaskCompletedExternalTask;
       'api::completed-task.completed-task': ApiCompletedTaskCompletedTask;
       'api::completed-test.completed-test': ApiCompletedTestCompletedTest;
+      'api::external-task.external-task': ApiExternalTaskExternalTask;
       'api::faq.faq': ApiFaqFaq;
       'api::group.group': ApiGroupGroup;
       'api::main-page.main-page': ApiMainPageMainPage;

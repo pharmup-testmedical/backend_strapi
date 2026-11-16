@@ -1,0 +1,63 @@
+{
+  "kind": "collectionType",
+  "collectionName": "external_tasks",
+  "info": {
+    "singularName": "external-task",
+    "pluralName": "external-tasks",
+    "displayName": "Внешнее задание",
+    "description": "Универсальное задание со внешней ссылкой и проверкой по скриншоту (голосования, внешние акции и т.п.)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text",
+      "required": true,
+      "description": "Инструкция для пользователя — показывается на карточке задания в приложении"
+    },
+    "image": {
+      "type": "media",
+      "allowedTypes": ["images"],
+      "multiple": false
+    },
+    "externalUrl": {
+      "type": "string",
+      "required": true,
+      "description": "Открывается во внешнем браузере (Linking.openURL), не во внутреннем WebView"
+    },
+    "rewardAmount": {
+      "type": "decimal",
+      "required": true,
+      "min": 0,
+      "description": "Текущая сумма награды на карточке задания. У уже отправленных заявок сумма зафиксирована отдельно (rewardAmountAtSubmission) и не меняется при правке этого поля."
+    },
+    "startAt": {
+      "type": "datetime",
+      "description": "Если не задано — задание доступно сразу"
+    },
+    "endAt": {
+      "type": "datetime",
+      "description": "Если не задано — задание не имеет срока окончания"
+    },
+    "active": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "legacyCompletedTaskEquivalent": {
+      "type": "string",
+      "description": "Значение поля task в старой коллекции completed-task (например businessAwardsVoting), если части пользователей бонус за этот же челлендж уже начислили вручную до выхода этого задания в сборке. Таким пользователям задание будет показано как уже выполненное, повторная заявка не создастся."
+    },
+    "completions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::completed-external-task.completed-external-task",
+      "mappedBy": "externalTask"
+    }
+  }
+}

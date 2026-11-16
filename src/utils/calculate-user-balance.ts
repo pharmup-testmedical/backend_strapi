@@ -169,8 +169,24 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
         return sum + (test.cashback || 0);
     }, 0);
 
-    const balance = totalVerifiedCashback + totalTaskCashback + totalTestCashback - totalApprovedCashback
-    strapi.log.info(`[Balance] Final balance for user ${userDocumentId}: ${balance} (receipts: ${totalVerifiedCashback}, tasks: ${totalTaskCashback}, tests: ${totalTestCashback}, requests: ${totalApprovedCashback})`)
+    // 6. External-task bonuses (голосования/внешние акции) — только
+    // approved, и по rewardAmountAtSubmission (сумма зафиксирована на
+    // момент отправки заявки, а не текущий rewardAmount задания). Живой
+    // пересчёт от текущего статуса — та же идемпотентная схема, что и у
+    // cashback-request: approved → pending → approved не задвоит начисление,
+    // approved → rejected автоматически вычтет его на следующем пересчёте.
+    const completedExternalTasks = await strapi.documents('api::completed-external-task.completed-external-task').findMany({
+        filters: {
+            user: { documentId: { $eq: userDocumentId } },
+            status: 'approved'
+        }
+    });
+    const totalExternalTaskCashback = completedExternalTasks.reduce((sum, completion) => {
+        return sum + (completion.rewardAmountAtSubmission || 0);
+    }, 0);
+
+    const balance = totalVerifiedCashback + totalTaskCashback + totalTestCashback + totalExternalTaskCashback - totalApprovedCashback
+    strapi.log.info(`[Balance] Final balance for user ${userDocumentId}: ${balance} (receipts: ${totalVerifiedCashback}, tasks: ${totalTaskCashback}, tests: ${totalTestCashback}, externalTasks: ${totalExternalTaskCashback}, requests: ${totalApprovedCashback})`)
     return balance
 }
 

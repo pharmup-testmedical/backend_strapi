@@ -110,6 +110,12 @@
       "target": "api::completed-test.completed-test",
       "mappedBy": "user"
     },
+    "completedExternalTasks": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::completed-external-task.completed-external-task",
+      "mappedBy": "user"
+    },
     "referralCode": {
       "type": "string",
       "required": true,

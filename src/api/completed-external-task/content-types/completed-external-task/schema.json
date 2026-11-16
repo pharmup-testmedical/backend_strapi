@@ -1,0 +1,48 @@
+{
+  "kind": "collectionType",
+  "collectionName": "completed_external_tasks",
+  "info": {
+    "singularName": "completed-external-task",
+    "pluralName": "completed-external-tasks",
+    "displayName": "Заявка на внешнее задание",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "externalTask": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::external-task.external-task",
+      "inversedBy": "completions"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "completedExternalTasks"
+    },
+    "screenshot": {
+      "type": "media",
+      "allowedTypes": ["images"],
+      "multiple": false,
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["pending", "approved", "rejected"],
+      "default": "pending",
+      "required": true
+    },
+    "rejectionReason": {
+      "type": "text"
+    },
+    "rewardAmountAtSubmission": {
+      "type": "decimal",
+      "required": true,
+      "min": 0,
+      "description": "Сумма награды, зафиксированная на момент отправки заявки (как ставка кешбэка на чеке) — не меняется при правке rewardAmount в задании. Выставляется автоматически сервером при создании, вручную не редактировать."
+    }
+  }
+}
