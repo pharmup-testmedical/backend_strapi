@@ -29,7 +29,7 @@
       "multiple": false,
       "required": true
     },
-    "status": {
+    "reviewStatus": {
       "type": "enumeration",
       "enum": ["pending", "approved", "rejected"],
       "default": "pending",

@@ -537,6 +537,11 @@ export interface ApiCompletedExternalTaskCompletedExternalTask
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
     rejectionReason: Schema.Attribute.Text;
+    reviewStatus: Schema.Attribute.Enumeration<
+      ['pending', 'approved', 'rejected']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
     rewardAmountAtSubmission: Schema.Attribute.Decimal &
       Schema.Attribute.Required &
       Schema.Attribute.SetMinMax<
@@ -546,9 +551,6 @@ export interface ApiCompletedExternalTaskCompletedExternalTask
         number
       >;
     screenshot: Schema.Attribute.Media<'images'> & Schema.Attribute.Required;
-    status: Schema.Attribute.Enumeration<['pending', 'approved', 'rejected']> &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<'pending'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

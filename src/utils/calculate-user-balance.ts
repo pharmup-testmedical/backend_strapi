@@ -178,7 +178,7 @@ export async function calculateUserBalance(userDocumentId: string): Promise<numb
     const completedExternalTasks = await strapi.documents('api::completed-external-task.completed-external-task').findMany({
         filters: {
             user: { documentId: { $eq: userDocumentId } },
-            status: 'approved'
+            reviewStatus: 'approved'
         }
     });
     const totalExternalTaskCashback = completedExternalTasks.reduce((sum, completion) => {

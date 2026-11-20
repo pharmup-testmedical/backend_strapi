@@ -54,8 +54,8 @@ export default factories.createCoreController(
                         startAt: task.startAt,
                         endAt: task.endAt,
                         windowState: resolveWindowState(task.startAt, task.endAt),
-                        myStatus: completedViaLegacy ? 'approved' : (completion?.status || null),
-                        rejectionReason: completion?.status === 'rejected' ? completion.rejectionReason : null,
+                        myStatus: completedViaLegacy ? 'approved' : (completion?.reviewStatus || null),
+                        rejectionReason: completion?.reviewStatus === 'rejected' ? completion.rejectionReason : null,
                         completedViaLegacy,
                     }
                 })

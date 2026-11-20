@@ -2,6 +2,28 @@ import { Context } from 'koa';
 
 export default (plugin) => {
     plugin.controllers = plugin.controllers || {};
+
+    // Обратная совместимость для уже опубликованной мобилки (1.9.4, в сторах):
+    // transactionFeed.js читает completion.status прямо из user.completedExternalTasks,
+    // полученного через GET /users/me?populate[completedExternalTasks]. После переименования
+    // поля completed-external-task.status → reviewStatus (2026-11-20, см. бэкенд-фикс
+    // "Invalid status" из Content Manager) этот путь отдавал бы только reviewStatus и
+    // ломал бы отображение одобренных бонусов за внешние задания в "Истории операций" у
+    // всех, кто ещё не обновился — новая сборка мобилки под это не планируется, поэтому
+    // алиас добавляется только в ОТВЕТЕ API, в базе поля status больше нет.
+    const originalUserMe = plugin.controllers.user.me;
+    plugin.controllers.user.me = async (ctx: Context) => {
+        await originalUserMe(ctx);
+        const tasks = (ctx.body as any)?.completedExternalTasks;
+        if (Array.isArray(tasks)) {
+            for (const task of tasks) {
+                if (task && typeof task === 'object' && task.status === undefined) {
+                    task.status = task.reviewStatus;
+                }
+            }
+        }
+    };
+
     plugin.controllers.custom = {
         async resetPasswordRedirect(ctx: Context) {
             console.log('resetPasswordRedirect called'); // Debug log

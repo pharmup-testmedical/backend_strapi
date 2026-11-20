@@ -79,7 +79,7 @@ export default factories.createCoreController(
                         },
                     })
                     if (existing) {
-                        if (existing.status === 'rejected') {
+                        if (existing.reviewStatus === 'rejected') {
                             throw new Error(
                                 `Ваша предыдущая заявка по этому заданию отклонена${existing.rejectionReason ? `: ${existing.rejectionReason}` : ''}. Повторная отправка недоступна — обратитесь в поддержку.`
                             )
@@ -95,7 +95,7 @@ export default factories.createCoreController(
                             user: userId,
                             externalTask: task.documentId,
                             screenshot: screenshotUpload.id,
-                            status: 'pending',
+                            reviewStatus: 'pending',
                             // Заморозка суммы на момент отправки — та же логика, что
                             // у item.cashback на чеке (см. задание Трека 2).
                             rewardAmountAtSubmission: task.rewardAmount,

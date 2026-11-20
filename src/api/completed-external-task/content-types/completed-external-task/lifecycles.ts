@@ -5,7 +5,7 @@ import { formatCurrency } from '../../../../utils/format-currency'
 
 // Начисление идемпотентно "бесплатно": calculateUserBalance каждый раз
 // заново суммирует rewardAmountAtSubmission только у записей со
-// status === 'approved' (см. calculate-user-balance.ts) — это не журнал
+// reviewStatus === 'approved' (см. calculate-user-balance.ts) — это не журнал
 // начислений, а пересчёт с нуля от текущего состояния. Поэтому повторное
 // сохранение уже approved записи, а также approved → pending → approved,
 // не могут начислить бонус второй раз — на любой момент пересчёта он либо
@@ -38,10 +38,10 @@ export default {
         })
         event.state = {
             previousUserDocumentId: record?.user?.documentId,
-            previousStatus: record?.status,
+            previousStatus: record?.reviewStatus,
         }
 
-        if (record?.status === 'approved' && data?.status === 'rejected') {
+        if (record?.reviewStatus === 'approved' && data?.reviewStatus === 'rejected') {
             throw new errors.ValidationError(
                 'Нельзя отклонить уже одобренное задание — начисление выполнено. Исправление — вручную.'
             )
@@ -65,7 +65,7 @@ export default {
         // повторное сохранение уже решённой заявки не шлёт уведомление
         // заново (тот же паттерн, что в cashback-request/lifecycles.ts).
         const previousStatus = event.state?.previousStatus
-        const newStatus = fullRecord?.status
+        const newStatus = fullRecord?.reviewStatus
         const isFreshDecision =
             previousStatus !== newStatus && (newStatus === 'approved' || newStatus === 'rejected')
 
